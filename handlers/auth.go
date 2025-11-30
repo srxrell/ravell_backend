@@ -5,6 +5,7 @@ import (
 	"ravell_backend/models"
 	"ravell_backend/utils"
 	"time"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -101,12 +102,6 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	// УБИРАЕМ ПРОВЕРКУ ВЕРИФИКАЦИИ
-	// if !user.Profile.IsVerified {
-	// 	c.JSON(http.StatusForbidden, gin.H{"error": "Account not verified"})
-	// 	return
-	// }
-
 	tokens, err := utils.GenerateJWTToken(user.ID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
@@ -121,121 +116,87 @@ func Login(c *gin.Context) {
 	})
 }
 
-// func VerifyOTP(c *gin.Context) {
-// 	db := c.MustGet("db").(*gorm.DB)
+func RefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokens, err := utils.RefreshToken(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Token refreshed successfully",
+		"tokens":  tokens,
+	})
+}
+
+func DeleteAccount(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
 	
-// 	var req struct {
-// 		UserID uint   `json:"user_id" binding:"required"`
-// 		OTP    string `json:"otp" binding:"required"`
-// 	}
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
 
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
+	var req struct {
+		Password string `json:"password" binding:"required"`
+	}
 
-// 	success, err := utils.VerifyOTP(db, req.UserID, req.OTP)
-// 	if err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
-// 	if !success {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": "OTP verification failed"})
-// 		return
-// 	}
+	// Находим пользователя
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
 
-// 	tokens, err := utils.GenerateJWTToken(req.UserID)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
-// 		return
-// 	}
+	// Проверяем пароль
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
 
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"message": "Account verified successfully",
-// 		"tokens":  tokens,
-// 	})
-// }
-
-// func RefreshToken(c *gin.Context) {
-// 	var req struct {
-// 		RefreshToken string `json:"refresh_token" binding:"required"`
-// 	}
-
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	tokens, err := utils.RefreshToken(req.RefreshToken)
-// 	if err != nil {
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
-// 		return
-// 	}
-
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"message": "Token refreshed successfully",
-// 		"tokens":  tokens,
-// 	})
-// }
-
-// func ResendOTP(c *gin.Context) {
-// 	db := c.MustGet("db").(*gorm.DB)
-	
-// 	var req struct {
-// 		UserID uint `json:"user_id" binding:"required"`
-// 	}
-
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-// 		return
-// 	}
-
-// 	var user models.User
-// 	if err := db.Preload("Profile").First(&user, req.UserID).Error; err != nil {
-// 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-// 		return
-// 	}
-
-// 	// Генерация нового OTP
-// 	otp, err := utils.SaveOTP(db, user.ID)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate OTP"})
-// 		return
-// 	}
-
-// 	fmt.Printf("✅ New OTP generated for user %s (%s): %s\n", user.Username, user.Email, otp)
-
-// 	// Отправка email
-// 	if err := utils.SendOTPEmail(user.Email, user.Username, otp); err != nil {
-// 		fmt.Printf("❌ Email sending failed: %v\n", err)
+	// Удаляем в транзакции
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// Удаляем профиль
+		if err := tx.Where("user_id = ?", userID).Delete(&models.Profile{}).Error; err != nil {
+			return err
+		}
 		
-// 		// Временно возвращаем OTP для разработки
-// 		c.JSON(http.StatusOK, gin.H{
-// 			"message":    "OTP regenerated but email failed",
-// 			"otp":        otp, // Только для разработки!
-// 			"debug_info": "Check email configuration",
-// 		})
-// 		return
-// 	}
+		// Удаляем связанные данные
+		tx.Where("user_id = ?", userID).Delete(&models.Story{})
+		tx.Where("user_id = ?", userID).Delete(&models.Comment{})
+		tx.Where("user_id = ?", userID).Delete(&models.Like{})
+		tx.Where("user_id = ?", userID).Delete(&models.Subscription{})
+		tx.Where("user_id = ?", userID).Delete(&models.NotInterested{})
+		
+		// Удаляем самого пользователя
+		if err := tx.Delete(&user).Error; err != nil {
+			return err
+		}
+		
+		return nil
+	})
 
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"message": "OTP resent successfully",
-// 	})
-// }
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+		return
+	}
 
-// // TestEmailConfig - для проверки настроек email
-// func TestEmailConfig(c *gin.Context) {
-// 	config := map[string]string{
-// 		"SMTP_HOST":      os.Getenv("SMTP_HOST"),
-// 		"SMTP_PORT":      os.Getenv("SMTP_PORT"),
-// 		"SMTP_USER":      os.Getenv("SMTP_USER"),
-// 		"FROM_EMAIL":     os.Getenv("FROM_EMAIL"),
-// 		"SMTP_PASS_set":  fmt.Sprintf("%v", os.Getenv("SMTP_PASS") != ""),
-// 	}
-
-// 	c.JSON(http.StatusOK, gin.H{
-// 		"email_config": config,
-// 		"message":      "Check if SMTP_PASS is set correctly",
-// 	})
-// }
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Account deleted successfully",
+	})
+}
