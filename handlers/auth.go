@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"fmt"
 	"net/http"
-	"os"
 	"ravell_backend/models"
 	"ravell_backend/utils"
 
