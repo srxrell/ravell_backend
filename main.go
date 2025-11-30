@@ -45,6 +45,7 @@ func main() {
 	{
 		profile.GET("/profile", handlers.GetMyProfile)
 		profile.PUT("/profile", handlers.UpdateProfile)
+		profile.PUT("/profile/with-image", handlers.UpdateProfileWithImage) // ✅ НОВЫЙ МАРШРУТ
 		profile.DELETE("/account", handlers.DeleteAccount)
 	}
 
@@ -69,7 +70,7 @@ func main() {
 
 	// 💬 Комментарии
 	comments := r.Group("/comments")
-	comments.Use(middleware.JWTAuth()) // Все операции с комментариями требуют аутентификации
+	comments.Use(middleware.JWTAuth())
 	{
 		comments.POST("/", handlers.CreateComment)
 		comments.PUT("/:id", handlers.UpdateComment)
@@ -124,7 +125,7 @@ func main() {
 			"version": "1.0.0",
 			"endpoints": gin.H{
 				"auth":      "/register, /login, /refresh-token",
-				"profile":   "/profile (protected)",
+				"profile":   "/profile, /profile/with-image (protected)",
 				"stories":   "/stories, /stories/:id",
 				"comments":  "/comments (protected)", 
 				"users":     "/users/:id/profile, /users/:id/stories",
