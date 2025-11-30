@@ -2,194 +2,206 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
 	"ravell_backend/models"
+	"ravell_backend/utils"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
-func GetUserProfile(c *gin.Context) {
+func Register(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	
-	userID, err := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Email    string `json:"email" binding:"required,email"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Проверка существующего пользователя
+	var existingUser models.User
+	if err := db.Where("username = ? OR email = ?", req.Username, req.Email).First(&existingUser).Error; err == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Username or email already exists"})
+		return
+	}
+
+	// Хеширование пароля
+	hashedPassword, err := utils.HashPassword(req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to hash password"})
 		return
 	}
 
-	var user models.User
-	result := db.Preload("Profile").First(&user, userID)
-	if result.Error != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+	// Создание пользователя
+	user := models.User{
+		Username: req.Username,
+		Email:    req.Email,
+		Password: hashedPassword,
+	}
+
+	if err := db.Create(&user).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
 
-	// Статистика пользователя
-	var storiesCount int64
-	var followersCount int64
-	var followingCount int64
-
-	db.Model(&models.Story{}).Where("user_id = ?", userID).Count(&storiesCount)
-	db.Model(&models.Subscription{}).Where("following_id = ?", userID).Count(&followersCount)
-	db.Model(&models.Subscription{}).Where("follower_id = ?", userID).Count(&followingCount)
-
-	response := gin.H{
-		"user": user,
-		"stats": gin.H{
-			"stories_count":   storiesCount,
-			"followers_count": followersCount,
-			"following_count": followingCount,
-		},
+	// Создание профиля СРАЗУ ВЕРИФИЦИРОВАННЫМ
+	profile := models.Profile{
+		UserID:      user.ID,
+		IsVerified:  true, // Сразу верифицируем
+		OtpCode:     "",   // Пустой OTP
+		OtpCreatedAt: time.Time{},
 	}
-
-	c.JSON(http.StatusOK, response)
-}
-
-
-func GetFollowers(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
 	
-	userID, err := strconv.Atoi(c.Param("id"))
+	if err := db.Create(&profile).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create profile"})
+		return
+	}
+
+	// ГЕНЕРАЦИЯ ТОКЕНОВ СРАЗУ (без OTP)
+	tokens, err := utils.GenerateJWTToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	var followers []models.Subscription
-	result := db.Where("following_id = ?", userID).Find(&followers)
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch followers"})
-		return
-	}
-
-	// Получаем данные пользователей
-	var followersData []gin.H
-	for _, sub := range followers {
-		var user models.User
-		if err := db.Preload("Profile").First(&user, sub.FollowerID).Error; err != nil {
-			continue
-		}
-		followersData = append(followersData, gin.H{
-			"user": user,
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"followers": followersData,
-		"count":     len(followersData),
-	})
-}
-
-func GetFollowing(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	
-	userID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	var following []models.Subscription
-	result := db.Where("follower_id = ?", userID).Find(&following)
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch following"})
-		return
-	}
-
-	// Получаем данные пользователей
-	var followingData []gin.H
-	for _, sub := range following {
-		var user models.User
-		if err := db.Preload("Profile").First(&user, sub.FollowingID).Error; err != nil {
-			continue
-		}
-		followingData = append(followingData, gin.H{
-			"user": user,
-		})
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"following": followingData,
-		"count":     len(followingData),
-	})
-}
-
-func FollowUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	currentUserID := c.MustGet("user_id").(uint)
-	
-	userIDToFollow, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	// Нельзя подписаться на себя
-	if uint(userIDToFollow) == currentUserID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot follow yourself"})
-		return
-	}
-
-	// Проверяем существование пользователя
-	var userToFollow models.User
-	if err := db.First(&userToFollow, userIDToFollow).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
-
-	// Проверяем существование подписки
-	var existingSubscription models.Subscription
-	if err := db.Where("follower_id = ? AND following_id = ?", currentUserID, userIDToFollow).
-		First(&existingSubscription).Error; err == nil {
-		c.JSON(http.StatusConflict, gin.H{"error": "Already following this user"})
-		return
-	}
-
-	// Создаем подписку
-	subscription := models.Subscription{
-		FollowerID:  currentUserID,
-		FollowingID: uint(userIDToFollow),
-	}
-
-	if err := db.Create(&subscription).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to follow user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 		return
 	}
 
 	c.JSON(http.StatusCreated, gin.H{
-		"message": "Successfully followed user",
-		"user":    userToFollow,
+		"message":  "User registered successfully",
+		"user_id":  user.ID,
+		"username": user.Username,
+		"tokens":   tokens, // Сразу возвращаем токены
 	})
 }
 
-func UnfollowUser(c *gin.Context) {
+func Login(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	currentUserID := c.MustGet("user_id").(uint)
 	
-	userIDToUnfollow, err := strconv.Atoi(c.Param("id"))
+	var req struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var user models.User
+	if err := db.Preload("Profile").Where("username = ?", req.Username).First(&user).Error; err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials"})
+		return
+	}
+
+	tokens, err := utils.GenerateJWTToken(user.ID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
-	// Удаляем подписку
-	result := db.Where("follower_id = ? AND following_id = ?", currentUserID, userIDToUnfollow).
-		Delete(&models.Subscription{})
-
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unfollow user"})
-		return
-	}
-
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Not following this user"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate tokens"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Successfully unfollowed user",
+		"message":  "Login successful",
+		"user_id":  user.ID,
+		"username": user.Username,
+		"tokens":   tokens,
 	})
 }
+
+func RefreshToken(c *gin.Context) {
+	var req struct {
+		RefreshToken string `json:"refresh_token" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokens, err := utils.RefreshToken(req.RefreshToken)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid refresh token"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Token refreshed successfully",
+		"tokens":  tokens,
+	})
+}
+
+func DeleteAccount(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+	
+	userID, exists := c.Get("user_id")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	var req struct {
+		Password string `json:"password" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Находим пользователя
+	var user models.User
+	if err := db.First(&user, userID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// Проверяем пароль
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid password"})
+		return
+	}
+
+	// Удаляем в транзакции
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// Удаляем профиль
+		if err := tx.Where("user_id = ?", userID).Delete(&models.Profile{}).Error; err != nil {
+			return err
+		}
+		
+		// Удаляем связанные данные
+		tx.Where("user_id = ?", userID).Delete(&models.Story{})
+		tx.Where("user_id = ?", userID).Delete(&models.Comment{})
+		tx.Where("user_id = ?", userID).Delete(&models.Like{})
+		tx.Where("user_id = ?", userID).Delete(&models.Subscription{})
+		tx.Where("user_id = ?", userID).Delete(&models.NotInterested{})
+		
+		// Удаляем самого пользователя
+		if err := tx.Delete(&user).Error; err != nil {
+			return err
+		}
+		
+		return nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete account"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Account deleted successfully",
+	})
+}
+
+// УДАЛИ ЭТИ ФУНКЦИИ, ОНИ УЖЕ ЕСТЬ В profile.go:
+// - GetUserProfile
+// - GetMyProfile  
+// - UpdateProfile

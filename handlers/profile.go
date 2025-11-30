@@ -6,9 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"ravell_backend/models"
-	"ravell_backend/utils"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,15 +23,8 @@ func GetMyProfile(c *gin.Context) {
 		return
 	}
 
-	// Преобразуем userID из строки в uint
-	uid, err := strconv.ParseUint(userID.(string), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
 	var user models.User
-	if err := db.Preload("Profile").First(&user, uint(uid)).Error; err != nil {
+	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -77,15 +68,8 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// Преобразуем userID из строки в uint
-	uid, err := strconv.ParseUint(userID.(string), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
-		return
-	}
-
 	// Обновляем пользователя
-	if err := db.Model(&models.User{}).Where("id = ?", uint(uid)).Updates(map[string]interface{}{
+	if err := db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"first_name": req.FirstName,
 		"last_name":  req.LastName,
 	}).Error; err != nil {
@@ -94,7 +78,7 @@ func UpdateProfile(c *gin.Context) {
 	}
 
 	// Обновляем профиль
-	if err := db.Model(&models.Profile{}).Where("user_id = ?", uint(uid)).Updates(map[string]interface{}{
+	if err := db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"bio": req.Bio,
 	}).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
@@ -103,7 +87,7 @@ func UpdateProfile(c *gin.Context) {
 
 	// Получаем обновленные данные
 	var user models.User
-	if err := db.Preload("Profile").First(&user, uint(uid)).Error; err != nil {
+	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
@@ -122,13 +106,6 @@ func UpdateProfileWithImage(c *gin.Context) {
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
-
-	// Преобразуем userID из строки в uint
-	uid, err := strconv.ParseUint(userID.(string), 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -154,7 +131,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 	}
 
 	if len(updates) > 0 {
-		if err := db.Model(&models.User{}).Where("id = ?", uint(uid)).Updates(updates).Error; err != nil {
+		if err := db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
 			return
 		}
@@ -174,7 +151,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 
 		// Генерируем уникальное имя файла
 		ext := filepath.Ext(header.Filename)
-		filename := fmt.Sprintf("avatar_%d_%d%s", uint(uid), time.Now().Unix(), ext)
+		filename := fmt.Sprintf("avatar_%d_%d%s", userID, time.Now().Unix(), ext)
 		filePath := filepath.Join("media", "avatars", filename)
 
 		// Сохраняем файл
@@ -195,14 +172,14 @@ func UpdateProfileWithImage(c *gin.Context) {
 		profileUpdates["avatar"] = avatarURL
 	}
 
-	if err := db.Model(&models.Profile{}).Where("user_id = ?", uint(uid)).Updates(profileUpdates).Error; err != nil {
+	if err := db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(profileUpdates).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
 		return
 	}
 
 	// Получаем обновленные данные
 	var user models.User
-	if err := db.Preload("Profile").First(&user, uint(uid)).Error; err != nil {
+	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
