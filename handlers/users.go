@@ -9,27 +9,27 @@ import (
 )
 
 // GetUserStories получает истории пользователя
-func GetUserStories(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
+// func GetUserStories(c *gin.Context) {
+// 	db := c.MustGet("db").(*gorm.DB)
 	
-	userID := c.Param("id")
+// 	userID := c.Param("id")
 	
-	var user models.User
-	if err := db.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
+// 	var user models.User
+// 	if err := db.First(&user, userID).Error; err != nil {
+// 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+// 		return
+// 	}
 
-	var stories []models.Story
-	if err := db.Preload("User").Preload("Hashtags.Hashtag").Where("user_id = ?", userID).Order("created_at DESC").Find(&stories).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stories"})
-		return
-	}
+// 	var stories []models.Story
+// 	if err := db.Preload("User").Preload("Hashtags.Hashtag").Where("user_id = ?", userID).Order("created_at DESC").Find(&stories).Error; err != nil {
+// 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stories"})
+// 		return
+// 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"stories": stories,
-	})
-}
+// 	c.JSON(http.StatusOK, gin.H{
+// 		"stories": stories,
+// 	})
+// }
 
 // GetFollowers получает подписчиков пользователя
 func GetFollowers(c *gin.Context) {
