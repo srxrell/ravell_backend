@@ -3,6 +3,7 @@ package utils
 import (
 	"errors"
 	"time"
+	"os"
 	"ravell_backend/config"
 
 	"github.com/golang-jwt/jwt/v5"
