@@ -34,31 +34,42 @@ func main() {
 	r.Use(middleware.CORS())
 	r.Use(middleware.DatabaseMiddleware(db))
 
-	// 🔐 Аутентификация
-	auth := r.Group("/api/auth")
+	// 🔐 Аутентификация (прямые маршруты)
+	r.POST("/register", handlers.Register)
+	r.POST("/login", handlers.Login)
+	r.POST("/refresh-token", handlers.RefreshToken)
+
+	// 👤 Профиль (защищенные маршруты)
+	profile := r.Group("/")
+	profile.Use(middleware.JWTAuth())
 	{
-		auth.POST("/register", handlers.Register)
-		auth.POST("/login", handlers.Login)
-		// auth.POST("/verify-otp", handlers.VerifyOTP)
-		auth.POST("/refresh-token", handlers.RefreshToken)
-		// auth.POST("/resend-otp", handlers.ResendOTP)
+		profile.GET("/profile", handlers.GetMyProfile)
+		profile.PUT("/profile", handlers.UpdateProfile)
+		profile.DELETE("/account", handlers.DeleteAccount)
 	}
 
 	// 📖 Истории
-	stories := r.Group("/api/stories")
+	stories := r.Group("/stories")
 	{
 		stories.GET("/", handlers.GetStories)
 		stories.GET("/:id", handlers.GetStory)
-		stories.POST("/", handlers.CreateStory) // Убрал JWTAuth
-		stories.PUT("/:id", handlers.UpdateStory) // Убрал JWTAuth
-		stories.DELETE("/:id", handlers.DeleteStory) // Убрал JWTAuth
-		stories.POST("/:id/like", handlers.LikeStory) // Убрал JWTAuth
-		stories.POST("/:id/not-interested", handlers.NotInterestedStory) // Убрал JWTAuth
 		stories.GET("/:id/comments", handlers.GetComments)
+		
+		// Защищенные маршруты для историй
+		protectedStories := stories.Group("")
+		protectedStories.Use(middleware.JWTAuth())
+		{
+			protectedStories.POST("/", handlers.CreateStory)
+			protectedStories.PUT("/:id", handlers.UpdateStory)
+			protectedStories.DELETE("/:id", handlers.DeleteStory)
+			protectedStories.POST("/:id/like", handlers.LikeStory)
+			protectedStories.POST("/:id/not-interested", handlers.NotInterestedStory)
+		}
 	}
 
 	// 💬 Комментарии
-	comments := r.Group("/api/comments") // Убрал JWTAuth
+	comments := r.Group("/comments")
+	comments.Use(middleware.JWTAuth()) // Все операции с комментариями требуют аутентификации
 	{
 		comments.POST("/", handlers.CreateComment)
 		comments.PUT("/:id", handlers.UpdateComment)
@@ -66,39 +77,60 @@ func main() {
 	}
 
 	// 👥 Пользователи
-	users := r.Group("/api/users")
+	users := r.Group("/users")
 	{
 		users.GET("/:id/profile", handlers.GetUserProfile)
 		users.GET("/:id/stories", handlers.GetUserStories)
 		users.GET("/:id/followers", handlers.GetFollowers)
 		users.GET("/:id/following", handlers.GetFollowing)
-		users.POST("/:id/follow", handlers.FollowUser) // Убрал JWTAuth
-		users.POST("/:id/unfollow", handlers.UnfollowUser) // Убрал JWTAuth
-	}
-
-	// 👤 Профиль
-	profile := r.Group("/api/profile") // Убрал JWTAuth
-	{
-		profile.GET("/", handlers.GetMyProfile)
-		profile.PUT("/", handlers.UpdateProfile)
-		// Убрал UpdateAvatar
+		
+		// Защищенные маршруты для подписок
+		protectedUsers := users.Group("")
+		protectedUsers.Use(middleware.JWTAuth())
+		{
+			protectedUsers.POST("/:id/follow", handlers.FollowUser)
+			protectedUsers.POST("/:id/unfollow", handlers.UnfollowUser)
+		}
 	}
 
 	// 🏷️ Хештеги
-	hashtags := r.Group("/api/hashtags")
+	hashtags := r.Group("/hashtags")
 	{
 		hashtags.GET("/", handlers.GetHashtags)
 		hashtags.GET("/:id/stories", handlers.GetHashtagStories)
-		hashtags.POST("/", handlers.CreateHashtag) // Убрал JWTAuth
+		
+		// Защищенные маршруты для хештегов
+		protectedHashtags := hashtags.Group("")
+		protectedHashtags.Use(middleware.JWTAuth())
+		{
+			protectedHashtags.POST("/", handlers.CreateHashtag)
+		}
 	}
 
 	// 🏠 Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
 			"status":    "ok",
-			"service":   "Stories API",
+			"service":   "Ravell API",
 			"version":   "1.0.0",
 			"timestamp": gin.H{"server": "online", "database": "connected"},
+		})
+	})
+
+	// Root endpoint
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "Ravell Backend API",
+			"version": "1.0.0",
+			"endpoints": gin.H{
+				"auth":      "/register, /login, /refresh-token",
+				"profile":   "/profile (protected)",
+				"stories":   "/stories, /stories/:id",
+				"comments":  "/comments (protected)", 
+				"users":     "/users/:id/profile, /users/:id/stories",
+				"hashtags":  "/hashtags, /hashtags/:id/stories",
+				"health":    "/health",
+			},
 		})
 	})
 
@@ -108,7 +140,7 @@ func main() {
 	}
 
 	log.Printf("🚀 Server started on port %s", port)
-	log.Printf("📚 API Documentation: http://localhost:%s/health", port)
+	log.Printf("🌐 Base URL: https://ravell-backend-1.onrender.com")
 	
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
