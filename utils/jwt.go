@@ -14,45 +14,35 @@ type Claims struct {
 }
 
 func GenerateJWTToken(userID uint) (map[string]string, error) {
-	cfg := config.LoadConfig()
-	
-	// Access token (24 hours)
-	accessExpirationTime := time.Now().Add(24 * time.Hour)
-	accessClaims := &Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(accessExpirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "stories-api",
-		},
-	}
+	// Access token - 24 часа вместо 15 минут
+	accessToken := jwt.New(jwt.SigningMethodHS256)
+	accessClaims := accessToken.Claims.(jwt.MapClaims)
+	accessClaims["user_id"] = userID
+	accessClaims["exp"] = time.Now().Add(24 * time.Hour).Unix() // 🟢 24 часа
+	accessClaims["iat"] = time.Now().Unix()
+	accessClaims["iss"] = "ravell-api"
 
-	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
-	accessTokenString, err := accessToken.SignedString([]byte(cfg.JWTSecret))
+	accessString, err := accessToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
 		return nil, err
 	}
 
-	// Refresh token (7 days)
-	refreshExpirationTime := time.Now().Add(7 * 24 * time.Hour)
-	refreshClaims := &Claims{
-		UserID: userID,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(refreshExpirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "stories-api",
-		},
-	}
+	// Refresh token - 30 дней
+	refreshToken := jwt.New(jwt.SigningMethodHS256)
+	refreshClaims := refreshToken.Claims.(jwt.MapClaims)
+	refreshClaims["user_id"] = userID
+	refreshClaims["exp"] = time.Now().Add(365 * 24 * time.Hour).Unix() // 🟢 30 дней
+	refreshClaims["iat"] = time.Now().Unix()
+	refreshClaims["iss"] = "ravell-api"
 
-	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
-	refreshTokenString, err := refreshToken.SignedString([]byte(cfg.JWTSecret))
+	refreshString, err := refreshToken.SignedString([]byte(os.Getenv("JWT_SECRET")))
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]string{
-		"access_token":  accessTokenString,
-		"refresh_token": refreshTokenString,
+		"access_token":  accessString,
+		"refresh_token": refreshString,
 	}, nil
 }
 
