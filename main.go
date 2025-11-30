@@ -39,9 +39,9 @@ func main() {
 	{
 		auth.POST("/register", handlers.Register)
 		auth.POST("/login", handlers.Login)
-		auth.POST("/verify-otp", handlers.VerifyOTP)
+		// auth.POST("/verify-otp", handlers.VerifyOTP)
 		auth.POST("/refresh-token", handlers.RefreshToken)
-		auth.POST("/resend-otp", handlers.ResendOTP)
+		// auth.POST("/resend-otp", handlers.ResendOTP)
 	}
 
 	// 📖 Истории
