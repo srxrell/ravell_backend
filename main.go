@@ -11,7 +11,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-
 func main() {
 	// Загрузка .env файла
 	if err := godotenv.Load(); err != nil {
@@ -28,9 +27,10 @@ func main() {
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
-	
 
 	r := gin.Default()
+
+	// ✅ ДОБАВЛЯЕМ СТАТИЧЕСКУЮ РАЗДАЧУ ФАЙЛОВ
 	r.Static("/media", "./media")
 
 	// Middleware
@@ -48,7 +48,7 @@ func main() {
 	{
 		profile.GET("/profile", handlers.GetMyProfile)
 		profile.PUT("/profile", handlers.UpdateProfile)
-		profile.PUT("/profile/with-image", handlers.UpdateProfileWithImage) // ✅ НОВЫЙ МАРШРУТ
+		profile.PUT("/profile/with-image", handlers.UpdateProfileWithImage)
 		profile.DELETE("/account", handlers.DeleteAccount)
 	}
 

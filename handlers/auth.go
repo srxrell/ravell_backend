@@ -52,9 +52,9 @@ func Register(c *gin.Context) {
 
 	// Создание профиля СРАЗУ ВЕРИФИЦИРОВАННЫМ
 	profile := models.Profile{
-		UserID:      user.ID,
-		IsVerified:  true, // Сразу верифицируем
-		OtpCode:     "",   // Пустой OTP
+		UserID:       user.ID,
+		IsVerified:   true, // Сразу верифицируем
+		OtpCode:      "",   // Пустой OTP
 		OtpCreatedAt: time.Time{},
 	}
 	
