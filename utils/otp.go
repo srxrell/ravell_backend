@@ -4,8 +4,8 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"time"
 	"ravell_backend/models"
+	"time"
 
 	"gorm.io/gorm"
 )
@@ -28,7 +28,7 @@ func SaveOTP(db *gorm.DB, userID uint) (string, error) {
 	
 	var profile models.Profile
 	if err := db.Where("user_id = ?", userID).First(&profile).Error; err != nil {
-		return "", err
+		return "", fmt.Errorf("profile not found for user %d: %v", userID, err)
 	}
 	
 	profile.OtpCode = otp
@@ -36,16 +36,17 @@ func SaveOTP(db *gorm.DB, userID uint) (string, error) {
 	profile.IsVerified = false
 	
 	if err := db.Save(&profile).Error; err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to save OTP: %v", err)
 	}
 	
+	fmt.Printf("💾 OTP saved for user %d: %s\n", userID, otp)
 	return otp, nil
 }
 
 func VerifyOTP(db *gorm.DB, userID uint, enteredOTP string) (bool, error) {
 	var profile models.Profile
 	if err := db.Where("user_id = ?", userID).First(&profile).Error; err != nil {
-		return false, err
+		return false, fmt.Errorf("profile not found: %v", err)
 	}
 	
 	if time.Since(profile.OtpCreatedAt) > 15*time.Minute {
@@ -61,7 +62,7 @@ func VerifyOTP(db *gorm.DB, userID uint, enteredOTP string) (bool, error) {
 	profile.OtpCreatedAt = time.Time{}
 	
 	if err := db.Save(&profile).Error; err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to update profile: %v", err)
 	}
 	
 	return true, nil

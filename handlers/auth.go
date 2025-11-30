@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"ravell_backend/models"
 	"ravell_backend/utils"
 
@@ -51,7 +53,10 @@ func Register(c *gin.Context) {
 
 	// Создание профиля
 	profile := models.Profile{UserID: user.ID}
-	db.Create(&profile)
+	if err := db.Create(&profile).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create profile"})
+		return
+	}
 
 	// Генерация и отправка OTP
 	otp, err := utils.SaveOTP(db, user.ID)
@@ -60,9 +65,19 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("✅ OTP generated for user %s (%s): %s\n", user.Username, user.Email, otp)
+
 	// Отправка email
 	if err := utils.SendOTPEmail(user.Email, user.Username, otp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send OTP email"})
+		fmt.Printf("❌ Email sending failed: %v\n", err)
+		
+		// Временно возвращаем OTP для разработки
+		c.JSON(http.StatusCreated, gin.H{
+			"message":    "User registered successfully. OTP generated but email failed",
+			"user_id":    user.ID,
+			"otp":        otp, // Только для разработки!
+			"debug_info": "Check email configuration",
+		})
 		return
 	}
 
@@ -198,13 +213,38 @@ func ResendOTP(c *gin.Context) {
 		return
 	}
 
+	fmt.Printf("✅ New OTP generated for user %s (%s): %s\n", user.Username, user.Email, otp)
+
 	// Отправка email
 	if err := utils.SendOTPEmail(user.Email, user.Username, otp); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to send OTP email"})
+		fmt.Printf("❌ Email sending failed: %v\n", err)
+		
+		// Временно возвращаем OTP для разработки
+		c.JSON(http.StatusOK, gin.H{
+			"message":    "OTP regenerated but email failed",
+			"otp":        otp, // Только для разработки!
+			"debug_info": "Check email configuration",
+		})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "OTP resent successfully",
+	})
+}
+
+// TestEmailConfig - для проверки настроек email
+func TestEmailConfig(c *gin.Context) {
+	config := map[string]string{
+		"SMTP_HOST":      os.Getenv("SMTP_HOST"),
+		"SMTP_PORT":      os.Getenv("SMTP_PORT"),
+		"SMTP_USER":      os.Getenv("SMTP_USER"),
+		"FROM_EMAIL":     os.Getenv("FROM_EMAIL"),
+		"SMTP_PASS_set":  fmt.Sprintf("%v", os.Getenv("SMTP_PASS") != ""),
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"email_config": config,
+		"message":      "Check if SMTP_PASS is set correctly",
 	})
 }
