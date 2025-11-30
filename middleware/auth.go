@@ -2,9 +2,9 @@ package middleware
 
 import (
 	"net/http"
+	"ravell_backend/utils"
 	"strconv"
 	"strings"
-	"ravell_backend/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -33,8 +33,8 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		// ✅ ИСПРАВЛЕНИЕ: Преобразуем userID в строку для безопасной передачи
-		c.Set("user_id", strconv.FormatUint(uint64(userID), 10))
+		// ✅ ИСПРАВЛЕНИЕ: Сохраняем как uint, а не строку
+		c.Set("user_id", userID)
 		c.Next()
 	}
 }

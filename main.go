@@ -27,8 +27,10 @@ func main() {
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	
 
 	r := gin.Default()
+	r.Static("/media", "./media")
 
 	// Middleware
 	r.Use(middleware.CORS())
