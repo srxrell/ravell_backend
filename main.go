@@ -30,12 +30,10 @@ func main() {
 
 	r := gin.Default()
 
-	// ✅ ДОБАВЛЯЕМ CORS ПЕРЕД ВСЕМ ОСТАЛЬНЫМ, СУКА!
+	// ✅ ИСПРАВЛЕННЫЙ CORS
 	r.Use(middleware.CORS())
 
-	// ✅ ДОБАВЛЯЕМ СТАТИЧЕСКУЮ РАЗДАЧУ ФАЙЛОВ ПОСЛЕ CORS
-	r.Static("/media", "./media")
-
+	// ✅ ПЕРЕМЕЩАЕМ СТАТИКУ В КОНЕЦ, ПОСЛЕ ВСЕГО
 	// Остальные middleware
 	r.Use(middleware.DatabaseMiddleware(db))
 
@@ -139,6 +137,9 @@ func main() {
 			},
 		})
 	})
+
+	// ✅ СТАТИЧЕСКИЕ ФАЙЛЫ ПОСЛЕ ВСЕХ МАРШРУТОВ
+	r.Static("/media", "./media")
 
 	port := os.Getenv("PORT")
 	if port == "" {
