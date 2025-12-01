@@ -62,12 +62,29 @@ func InitDB() *gorm.DB {
 
 // MigrateDB выполняет миграции
 func MigrateDB(db *gorm.DB) {
-	// Здесь добавьте ваши модели для миграции
+	// ИМПОРТИРУЙ МОДЕЛИ, ДАУН
+	import "ravell_backend/models"
+	
 	err := db.AutoMigrate(
-		// Ваши модели здесь
+		&models.User{},
+		&models.Profile{},
+		&models.Story{},
+		&models.Comment{},
+		&models.Like{},
+		&models.Subscription{},
+		&models.Hashtag{},
+		&models.StoryHashtag{},
+		&models.NotInterested{},
 	)
+	
 	if err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
+	
 	log.Println("✅ Database migration completed")
+	
+	// ПРОВЕРЬ, ЧТО ТАБЛИЦЫ СОЗДАНЫ
+	var tableCount int64
+	db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
+	log.Printf("📊 Tables created: %d", tableCount)
 }
