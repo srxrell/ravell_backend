@@ -1,4 +1,4 @@
-module ravell_backend
+module go_stories_api
 
 go 1.21
 

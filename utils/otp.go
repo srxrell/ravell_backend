@@ -4,7 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"ravell_backend/models"
+	"go_stories_api/models"
 	"time"
 
 	"gorm.io/gorm"

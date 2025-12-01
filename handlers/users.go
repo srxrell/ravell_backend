@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"net/http"
-	"ravell_backend/models"
+	"go_stories_api/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"

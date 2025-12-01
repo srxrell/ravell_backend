@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"ravell_backend/models"
+	"go_stories_api/models"
 	"time"
 
 	"github.com/gin-gonic/gin"

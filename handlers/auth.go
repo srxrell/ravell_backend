@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
-	"ravell_backend/models"
-	"ravell_backend/utils"
+	"go_stories_api/models"
+	"go_stories_api/utils"
 	"time"
 
 	"github.com/gin-gonic/gin"

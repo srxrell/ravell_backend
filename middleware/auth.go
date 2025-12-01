@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"net/http"
-	"ravell_backend/utils"
+	"go_stories_api/utils"
 	"strings"
 
 	"github.com/gin-gonic/gin"

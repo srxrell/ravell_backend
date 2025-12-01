@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"time"
+	"go_stories_api/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -62,9 +63,6 @@ func InitDB() *gorm.DB {
 
 // MigrateDB выполняет миграции
 func MigrateDB(db *gorm.DB) {
-	// ИМПОРТИРУЙ МОДЕЛИ, ДАУН
-	import "ravell_backend/models"
-	
 	err := db.AutoMigrate(
 		&models.User{},
 		&models.Profile{},

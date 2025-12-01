@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"ravell_backend/database"
-	"ravell_backend/handlers"
-	"ravell_backend/middleware"
+	"go_stories_api/database"
+	"go_stories_api/handlers"
+	"go_stories_api/middleware"
 	"syscall"
 	"time"
 

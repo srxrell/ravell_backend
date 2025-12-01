@@ -1,1 +1,1 @@
-# ravell_backend
+# go_stories_api

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 	"os"
-	"ravell_backend/config"
+	"go_stories_api/config"
 
 	"github.com/golang-jwt/jwt/v5"
 )
