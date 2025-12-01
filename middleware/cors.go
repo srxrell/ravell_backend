@@ -1,4 +1,4 @@
-// middleware/cors.go
+// middleware/cors.go - ПОЛНОСТЬЮ ПЕРЕПИШИ!
 package middleware
 
 import (
@@ -7,31 +7,20 @@ import (
 
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		origin := c.Request.Header.Get("Origin")
-		
-		// ЕБАНЫЙ В РОТ, ЕСЛИ ORIGIN ПУСТОЙ - СТАВЬ ЗВЁЗДОЧКУ!
-		if origin == "" {
-			origin = "*"
-		}
-		
-		c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+		// ⚠️ ВСЕГДА СТАВЬ ЗВЁЗДОЧКУ НА RENDER!
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", 
-			"Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, " +
-			"Authorization, Accept, Origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", 
-			"POST, OPTIONS, GET, PUT, DELETE, PATCH")
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "*")
 		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
-		c.Writer.Header().Set("Access-Control-Expose-Headers", "Content-Length")
+		c.Writer.Header().Set("Access-Control-Expose-Headers", "*")
 		
-		// ДОБАВЬ ЛОГИРОВАНИЕ, ДАУН
-		// fmt.Printf("CORS: Origin=%s, Setting header: %s\n", origin, c.Writer.Header().Get("Access-Control-Allow-Origin"))
-		
+		// ⚠️ ОБЯЗАТЕЛЬНО ДОБАВЬ ЭТО!
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
+			c.AbortWithStatus(200)
 			return
 		}
-
+		
 		c.Next()
 	}
 }
