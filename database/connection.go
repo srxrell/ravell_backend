@@ -14,7 +14,7 @@ import (
 // InitDB инициализирует подключение к базе данных
 func InitDB() *gorm.DB {
 	// Получаем строку подключения из переменных окружения
-	dsn := os.Getenv("DATABASE_URL")
+	dsn := "host=dpg-d4lhvlk9c44c73fhpnv0-a.oregon-postgres.render.com user=mydjangodb_p5sh_user password=l4JYUoXYOzMAjBxpN3yoe5OCV5qAbTMi dbname=mydjangodb_p5sh port=5432 sslmode=require"
 	if dsn == "" {
 		log.Fatal("DATABASE_URL environment variable is not set")
 	}
