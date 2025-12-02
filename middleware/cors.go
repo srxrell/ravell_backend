@@ -1,4 +1,4 @@
-// middleware/cors.go - ПОЛНОСТЬЮ ПЕРЕПИШИ!
+// middleware/cors.go
 package middleware
 
 import (
@@ -7,17 +7,25 @@ import (
 
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// ⚠️ ВСЕГДА СТАВЬ ЗВЁЗДОЧКУ НА RENDER!
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "*")
-		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
-		c.Writer.Header().Set("Access-Control-Expose-Headers", "*")
+		// Разрешаем запросы от любого источника (звездочка *)
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://192.168.1.104:8081")
 		
-		// ⚠️ ОБЯЗАТЕЛЬНО ДОБАВЬ ЭТО!
+		// Разрешаем куки и авторизационные заголовки (хотя "*" и "true" вместе не рекомендуются 
+		// для production, для dev это нормально)
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		
+		// Разрешаем все заголовки, включая Content-Type, Authorization, и т.д.
+		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		
+		// Разрешаем все основные HTTP методы
+		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
+		
+		// Максимальное время кэширования preflight-запроса (в секундах)
+		c.Writer.Header().Set("Access-Control-Max-Age", "86400")
+
+		// Обязательная обработка OPTIONS запросов (CORS preflight)
 		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(200)
+			c.AbortWithStatus(204) // Используем 204 No Content для OPTIONS
 			return
 		}
 		

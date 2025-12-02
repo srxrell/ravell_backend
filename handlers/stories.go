@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 	"strconv"
+	"log"
 	"go_stories_api/models"
 
 	"github.com/gin-gonic/gin"
@@ -11,11 +12,32 @@ import (
 
 func GetStories(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
+
+	// 1. Получаем параметр поиска 'search'
+	searchTerm := c.Query("search")
 	
+	// Начинаем запрос с базовой модели
+	query := db.Preload("User").Preload("User.Profile").Order("created_at DESC")
+
+	// 2. Если параметр поиска предоставлен, применяем фильтрацию
+	if searchTerm != "" {
+		// Формируем строку для LIKE запроса
+		searchPattern := "%" + searchTerm + "%"
+
+		// Применяем фильтр WHERE для поиска по Title ИЛИ Content
+		query = query.Where(
+			"title LIKE ? OR content LIKE ?", 
+			searchPattern, 
+			searchPattern,
+		)
+		
+		// Логирование для отладки
+		log.Printf("Searching stories for term: %s", searchTerm)
+	}
+
 	var stories []models.Story
-	result := db.Preload("User").Preload("User.Profile").
-		Order("created_at DESC").
-		Find(&stories)
+	// 3. Выполняем запрос
+	result := query.Find(&stories)
 
 	if result.Error != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stories"})
@@ -24,13 +46,13 @@ func GetStories(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"stories": stories,
-		"count":   len(stories),
+		"count": len(stories),
 	})
 }
 
 func GetStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
@@ -39,7 +61,7 @@ func GetStory(c *gin.Context) {
 
 	var story models.Story
 	result := db.Preload("User").Preload("User.Profile").First(&story, id)
-	
+
 	if result.Error != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
 		return
@@ -51,10 +73,10 @@ func GetStory(c *gin.Context) {
 func CreateStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
+
 	var req struct {
-		Title    string `json:"title" binding:"required"`
-		Content  string `json:"content" binding:"required"`
+		Title string `json:"title" binding:"required"` // Fixed space
+		Content string `json:"content" binding:"required"` // Fixed space
 		Hashtags []uint `json:"hashtag_ids"`
 	}
 
@@ -64,8 +86,8 @@ func CreateStory(c *gin.Context) {
 	}
 
 	story := models.Story{
-		UserID:  userID,
-		Title:   req.Title,
+		UserID: userID,
+		Title: req.Title,
 		Content: req.Content,
 	}
 
@@ -80,9 +102,9 @@ func CreateStory(c *gin.Context) {
 		if err := db.First(&hashtag, hashtagID).Error; err != nil {
 			continue // Пропускаем несуществующие хештеги
 		}
-		
+
 		db.Create(&models.StoryHashtag{
-			StoryID:   story.ID,
+			StoryID: story.ID,
 			HashtagID: hashtagID,
 		})
 	}
@@ -96,7 +118,7 @@ func CreateStory(c *gin.Context) {
 func UpdateStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
@@ -116,7 +138,7 @@ func UpdateStory(c *gin.Context) {
 	}
 
 	var req struct {
-		Title   string `json:"title"`
+		Title string `json:"title"`
 		Content string `json:"content"`
 	}
 
@@ -145,7 +167,7 @@ func UpdateStory(c *gin.Context) {
 func DeleteStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
+
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
@@ -174,7 +196,7 @@ func DeleteStory(c *gin.Context) {
 func LikeStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
+
 	storyID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
@@ -192,21 +214,30 @@ func LikeStory(c *gin.Context) {
 	if err := db.Where("user_id = ? AND story_id = ?", userID, storyID).First(&existingLike).Error; err == nil {
 		// Удаляем лайк если существует
 		db.Delete(&existingLike)
-		c.JSON(http.StatusOK, gin.H{"liked": false, "message": "Like removed"})
 	} else {
 		// Создаем новый лайк
 		db.Create(&models.Like{
-			UserID:  userID,
+			UserID: userID,
 			StoryID: uint(storyID),
 		})
-		c.JSON(http.StatusOK, gin.H{"liked": true, "message": "Story liked"})
 	}
+
+	// Calculate the total likes count after the operation
+	var likesCount int64
+	db.Model(&models.Like{}).Where("story_id = ?", storyID).Count(&likesCount)
+
+	// Return the likes_count key as expected by the Flutter frontend
+	c.JSON(http.StatusOK, gin.H{
+		"liked": err != nil,
+		"message": "Operation successful",
+		"likes_count": likesCount,
+	})
 }
 
 func NotInterestedStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
+
 	storyID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
@@ -222,7 +253,7 @@ func NotInterestedStory(c *gin.Context) {
 
 	// Добавляем в "Не интересно"
 	notInterested := models.NotInterested{
-		UserID:  userID,
+		UserID: userID,
 		StoryID: uint(storyID),
 	}
 
@@ -236,7 +267,7 @@ func NotInterestedStory(c *gin.Context) {
 
 func GetUserStories(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
+
 	userID, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
@@ -256,6 +287,6 @@ func GetUserStories(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"stories": stories,
-		"count":   len(stories),
+		"count": len(stories), // Fixed space
 	})
 }
