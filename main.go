@@ -91,6 +91,8 @@ func main() {
 	stories := r.Group("/stories")
 	{
 		stories.GET("/", handlers.GetStories)
+		stories.GET("/seeds", handlers.GetSeeds)           // ✅ ДОБАВЛЕНО
+		stories.GET("/branches", handlers.GetBranches)     // ✅ ДОБАВЛЕНО
 		stories.GET("/:id", handlers.GetStory)
 		stories.GET("/:id/comments", handlers.GetComments)
 		
@@ -148,7 +150,6 @@ func main() {
 
 	// 🏠 Health check с детальной информацией
 	r.GET("/health", func(c *gin.Context) {
-		// Проверяем подключение к БД
 		sqlDB, err := db.DB()
 		dbStatus := "connected"
 		if err != nil {
@@ -160,13 +161,13 @@ func main() {
 		}
 		
 		c.JSON(200, gin.H{
-			"status":    "ok",
-			"service":   "Ravell API",
-			"version":   "1.0.0",
-			"timestamp": time.Now().Unix(),
-			"database":  dbStatus,
+			"status":      "ok",
+			"service":     "Ravell API",
+			"version":     "1.0.0",
+			"timestamp":   time.Now().Unix(),
+			"database":    dbStatus,
 			"environment": os.Getenv("ENV"),
-			"host": c.Request.Host,
+			"host":        c.Request.Host,
 		})
 	})
 
@@ -184,7 +185,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // Изменил на 8080 для Render
+		port = "8080"
 	}
 
 	// Создаем сервер с правильными настройками
@@ -194,7 +195,7 @@ func main() {
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		IdleTimeout:    30 * time.Second,
-		MaxHeaderBytes: 1 << 20, // 1 MB
+		MaxHeaderBytes: 1 << 20,
 	}
 
 	// Запускаем сервер в горутине

@@ -1,42 +1,44 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
-	"log"
+	"strings"
+	"time"
+	
 	"go_stories_api/models"
-
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+// Функция подсчета слов
+func countWords(text string) int {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return 0
+	}
+	return len(strings.Fields(text))
+}
+
 func GetStories(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
-	// 1. Получаем параметр поиска 'search'
 	searchTerm := c.Query("search")
-	
-	// Начинаем запрос с базовой модели
 	query := db.Preload("User").Preload("User.Profile").Order("created_at DESC")
 
-	// 2. Если параметр поиска предоставлен, применяем фильтрацию
 	if searchTerm != "" {
-		// Формируем строку для LIKE запроса
 		searchPattern := "%" + searchTerm + "%"
-
-		// Применяем фильтр WHERE для поиска по Title ИЛИ Content
 		query = query.Where(
 			"title LIKE ? OR content LIKE ?", 
 			searchPattern, 
 			searchPattern,
 		)
-		
-		// Логирование для отладки
 		log.Printf("Searching stories for term: %s", searchTerm)
 	}
 
 	var stories []models.Story
-	// 3. Выполняем запрос
 	result := query.Find(&stories)
 
 	if result.Error != nil {
@@ -46,7 +48,7 @@ func GetStories(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"stories": stories,
-		"count": len(stories),
+		"count":   len(stories),
 	})
 }
 
@@ -75,8 +77,9 @@ func CreateStory(c *gin.Context) {
 	userID := c.MustGet("user_id").(uint)
 
 	var req struct {
-		Title string `json:"title" binding:"required"` // Fixed space
-		Content string `json:"content" binding:"required"` // Fixed space
+		Title    string `json:"title" binding:"required"`
+		Content  string `json:"content" binding:"required"`
+		ReplyTo  *uint  `json:"reply_to"` // ДОБАВЛЕНО
 		Hashtags []uint `json:"hashtag_ids"`
 	}
 
@@ -85,29 +88,65 @@ func CreateStory(c *gin.Context) {
 		return
 	}
 
-	story := models.Story{
-		UserID: userID,
-		Title: req.Title,
-		Content: req.Content,
+	// Проверка 100 слов
+	wordCount := countWords(req.Content)
+	if wordCount != 100 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("Нужно ровно 100 слов. Сейчас: %d", wordCount),
+		})
+		return
 	}
 
-	if err := db.Create(&story).Error; err != nil {
+	story := models.Story{
+		UserID:    userID,
+		Title:     req.Title,
+		Content:   req.Content,
+		WordCount: wordCount,
+		ReplyTo:   req.ReplyTo,
+	}
+
+	// Транзакция для атомарности
+	tx := db.Begin()
+	
+	if err := tx.Create(&story).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create story"})
 		return
+	}
+
+	// Если это ответ, обновляем родительскую историю
+	if req.ReplyTo != nil {
+		now := time.Now()
+		if err := tx.Model(&models.Story{}).
+			Where("id = ?", *req.ReplyTo).
+			Updates(map[string]interface{}{
+				"reply_count":   gorm.Expr("reply_count + 1"),
+				"last_reply_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update parent story"})
+			return
+		}
 	}
 
 	// Привязка хештегов
 	for _, hashtagID := range req.Hashtags {
 		var hashtag models.Hashtag
-		if err := db.First(&hashtag, hashtagID).Error; err != nil {
+		if err := tx.First(&hashtag, hashtagID).Error; err != nil {
 			continue // Пропускаем несуществующие хештеги
 		}
 
-		db.Create(&models.StoryHashtag{
-			StoryID: story.ID,
+		if err := tx.Create(&models.StoryHashtag{
+			StoryID:   story.ID,
 			HashtagID: hashtagID,
-		})
+		}).Error; err != nil {
+			tx.Rollback()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add hashtag"})
+			return
+		}
 	}
+
+	tx.Commit()
 
 	// Загружаем связанные данные для ответа
 	db.Preload("User").Preload("User.Profile").First(&story, story.ID)
@@ -131,14 +170,13 @@ func UpdateStory(c *gin.Context) {
 		return
 	}
 
-	// Проверка владельца
 	if story.UserID != userID {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Not your story"})
 		return
 	}
 
 	var req struct {
-		Title string `json:"title"`
+		Title   string `json:"title"`
 		Content string `json:"content"`
 	}
 
@@ -147,7 +185,6 @@ func UpdateStory(c *gin.Context) {
 		return
 	}
 
-	// Обновляем только переданные поля
 	updates := make(map[string]interface{})
 	if req.Title != "" {
 		updates["title"] = req.Title
@@ -203,7 +240,6 @@ func LikeStory(c *gin.Context) {
 		return
 	}
 
-	// Проверяем существование истории
 	var story models.Story
 	if err := db.First(&story, storyID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
@@ -212,24 +248,20 @@ func LikeStory(c *gin.Context) {
 
 	var existingLike models.Like
 	if err := db.Where("user_id = ? AND story_id = ?", userID, storyID).First(&existingLike).Error; err == nil {
-		// Удаляем лайк если существует
 		db.Delete(&existingLike)
 	} else {
-		// Создаем новый лайк
 		db.Create(&models.Like{
-			UserID: userID,
+			UserID:  userID,
 			StoryID: uint(storyID),
 		})
 	}
 
-	// Calculate the total likes count after the operation
 	var likesCount int64
 	db.Model(&models.Like{}).Where("story_id = ?", storyID).Count(&likesCount)
 
-	// Return the likes_count key as expected by the Flutter frontend
 	c.JSON(http.StatusOK, gin.H{
-		"liked": err != nil,
-		"message": "Operation successful",
+		"liked":       err != nil,
+		"message":     "Operation successful",
 		"likes_count": likesCount,
 	})
 }
@@ -244,16 +276,14 @@ func NotInterestedStory(c *gin.Context) {
 		return
 	}
 
-	// Проверяем существование истории
 	var story models.Story
 	if err := db.First(&story, storyID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
 		return
 	}
 
-	// Добавляем в "Не интересно"
 	notInterested := models.NotInterested{
-		UserID: userID,
+		UserID:  userID,
 		StoryID: uint(storyID),
 	}
 
@@ -287,6 +317,31 @@ func GetUserStories(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"stories": stories,
-		"count": len(stories), // Fixed space
+		"count":   len(stories),
 	})
+}
+
+func GetSeeds(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+	
+	var stories []models.Story
+	result := db.Preload("User").Preload("User.Profile").
+		Where("reply_to IS NULL AND reply_count = 0").
+		Order("created_at DESC").
+		Find(&stories)
+	
+	c.JSON(http.StatusOK, gin.H{"stories": stories})
+}
+
+func GetBranches(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+	
+	var stories []models.Story
+	result := db.Preload("User").Preload("User.Profile").
+		Where("reply_to IS NULL AND reply_count > 0").
+		Order("reply_count DESC").
+		Order("last_reply_at DESC").
+		Find(&stories)
+	
+	c.JSON(http.StatusOK, gin.H{"stories": stories})
 }

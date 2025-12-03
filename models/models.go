@@ -37,29 +37,28 @@ type Profile struct {
 
 // models/story.go - ДОБАВИТЬ ПОЛЯ:
 type Story struct {
-    ID        uint      `gorm:"primaryKey" json:"id"`
-    UserID    uint      `gorm:"not null;index" json:"user_id"`
-    Title     string    `gorm:"size:255;not null" json:"title"`
-    Content   string    `gorm:"type:text;not null" json:"content"`
-    
-    // НОВЫЕ ПОЛЯ ДЛЯ RAVELL:
-    WordCount  int       `gorm:"default:0" json:"word_count"`      // всегда 100
-    ReplyTo    *uint     `gorm:"index" json:"reply_to"`            // null для корня
-    ReplyCount int       `gorm:"default:0" json:"reply_count"`     // количество ответов
-    LastReplyAt *time.Time `gorm:"index" json:"last_reply_at"`     // время последнего ответа
-    
-    // Существующие поля
-    ImageURL  string    `gorm:"size:500" json:"image_url"`
-    CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
-    UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-    
-    // Отношения
-    User      User          `gorm:"foreignKey:UserID" json:"user"`
-    Comments  []Comment     `gorm:"foreignKey:StoryID" json:"comments,omitempty"`
-    Likes     []Like        `gorm:"foreignKey:StoryID" json:"likes,omitempty"`
-    Hashtags  []StoryHashtag `gorm:"foreignKey:StoryID" json:"hashtags,omitempty"`
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	UserID    uint      `gorm:"not null;index" json:"user_id"`
+	Title     string    `gorm:"size:255;not null" json:"title"`
+	Content   string    `gorm:"type:text;not null" json:"content"`
+	
+	// НОВЫЕ ПОЛЯ ДЛЯ RAVELL
+	WordCount  int        `gorm:"default:0" json:"word_count"`      // всегда 100
+	ReplyTo    *uint      `gorm:"index" json:"reply_to"`            // null для корня
+	ReplyCount int        `gorm:"default:0" json:"reply_count"`     // количество ответов
+	LastReplyAt *time.Time `gorm:"index" json:"last_reply_at"`      // время последнего ответа
+	
+	// Существующие поля
+	ImageURL  string    `gorm:"size:500" json:"image_url"`
+	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	
+	// Отношения
+	User      User           `gorm:"foreignKey:UserID" json:"user"`
+	Comments  []Comment      `gorm:"foreignKey:StoryID" json:"comments,omitempty"`
+	Likes     []Like         `gorm:"foreignKey:StoryID" json:"likes,omitempty"`
+	Hashtags  []StoryHashtag `gorm:"foreignKey:StoryID" json:"hashtags,omitempty"`
 }
-
 type Comment struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	UserID    uint      `gorm:"not null;index" json:"user_id"`
