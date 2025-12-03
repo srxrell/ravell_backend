@@ -39,9 +39,7 @@ func GetStories(c *gin.Context) {
 	}
 
 	var stories []models.Story
-	result := query.Find(&stories)
-
-	if result.Error != nil {
+	if err := query.Find(&stories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stories"})
 		return
 	}
@@ -62,9 +60,7 @@ func GetStory(c *gin.Context) {
 	}
 
 	var story models.Story
-	result := db.Preload("User").Preload("User.Profile").First(&story, id)
-
-	if result.Error != nil {
+	if err := db.Preload("User").Preload("User.Profile").First(&story, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
 		return
 	}
@@ -305,12 +301,10 @@ func GetUserStories(c *gin.Context) {
 	}
 
 	var stories []models.Story
-	result := db.Preload("User").Preload("User.Profile").
+	if err := db.Preload("User").Preload("User.Profile").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
-		Find(&stories)
-
-	if result.Error != nil {
+		Find(&stories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch user stories"})
 		return
 	}
@@ -325,10 +319,13 @@ func GetSeeds(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	
 	var stories []models.Story
-	result := db.Preload("User").Preload("User.Profile").
+	if err := db.Preload("User").Preload("User.Profile").
 		Where("reply_to IS NULL AND reply_count = 0").
 		Order("created_at DESC").
-		Find(&stories)
+		Find(&stories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch seeds"})
+		return
+	}
 	
 	c.JSON(http.StatusOK, gin.H{"stories": stories})
 }
@@ -337,11 +334,14 @@ func GetBranches(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	
 	var stories []models.Story
-	result := db.Preload("User").Preload("User.Profile").
+	if err := db.Preload("User").Preload("User.Profile").
 		Where("reply_to IS NULL AND reply_count > 0").
 		Order("reply_count DESC").
 		Order("last_reply_at DESC").
-		Find(&stories)
+		Find(&stories).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch branches"})
+		return
+	}
 	
 	c.JSON(http.StatusOK, gin.H{"stories": stories})
 }
