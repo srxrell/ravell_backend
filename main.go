@@ -95,6 +95,7 @@ func main() {
 		stories.GET("/branches", handlers.GetBranches)     // ✅ ДОБАВЛЕНО
 		stories.GET("/:id", handlers.GetStory)
 		stories.GET("/:id/comments", handlers.GetComments)
+		stories.GET("/:id/replies", handlers.GetReplies)
 		
 		// Защищенные маршруты для историй
 		protectedStories := stories.Group("")

@@ -315,6 +315,40 @@ func GetUserStories(c *gin.Context) {
 	})
 }
 
+func GetReplies(c *gin.Context) {
+    db := c.MustGet("db").(*gorm.DB)
+
+    // 1. Получаем ID родительской истории из параметра URL
+    parentID, err := strconv.Atoi(c.Param("id"))
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid story ID"})
+        return
+    }
+
+    // 2. Ищем все истории, где ReplyTo совпадает с ID родителя
+    var replies []models.Story
+    if err := db.Preload("User").Preload("User.Profile").
+        Where("reply_to = ?", parentID). 
+        Order("created_at ASC"). // Упорядочиваем по времени создания, чтобы видеть хронологию ответов
+        Find(&replies).Error; err != nil {
+        
+        // В случае ошибки базы данных
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch replies"})
+        return
+    }
+    
+    // Опционально: Проверка, что родительская история существует
+    // Хотя запрос Where("reply_to = ?", parentID) вернет пустой список,
+    // если родителя нет, явная 404 может быть полезна. Но для списка ответов 
+    // пустой список (200 OK) является стандартным поведением.
+
+    // 3. Отправляем ответы
+    c.JSON(http.StatusOK, gin.H{
+        "replies": replies,
+        "count":   len(replies),
+    })
+}
+
 func GetSeeds(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	
