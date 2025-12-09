@@ -139,6 +139,9 @@ func main() {
 		}
 	}
 
+	r.POST("/send-push", handlers.SendPushNotification)
+
+
 	// 🏷️ Хештеги
 	hashtags := r.Group("/hashtags")
 	{
