@@ -201,7 +201,6 @@ func UpdateStory(c *gin.Context) {
 func DeleteStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
-	
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -210,8 +209,6 @@ func DeleteStory(c *gin.Context) {
 	}
 
 	var story models.Story
-	log.Printf("Deleting story: %+v", story)
-
 	if err := db.First(&story, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
 		return
@@ -222,13 +219,28 @@ func DeleteStory(c *gin.Context) {
 		return
 	}
 
-	if err := db.Delete(&story).Error; err != nil {
+	// Транзакция для безопасного удаления
+	tx := db.Begin()
+
+	// 1️⃣ Удаляем связи с хештегами
+	if err := tx.Where("story_id = ?", story.ID).Delete(&models.StoryHashtag{}).Error; err != nil {
+		tx.Rollback()
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove story hashtags links"})
+		return
+	}
+
+	// 2️⃣ Удаляем саму историю
+	if err := tx.Delete(&story).Error; err != nil {
+		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete story"})
 		return
 	}
 
+	tx.Commit()
+
 	c.JSON(http.StatusOK, gin.H{"message": "Story deleted successfully"})
 }
+
 
 func LikeStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
