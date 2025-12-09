@@ -7,8 +7,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	
+
 	"go_stories_api/models"
+
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -200,6 +201,7 @@ func UpdateStory(c *gin.Context) {
 func DeleteStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
+	
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
@@ -208,6 +210,8 @@ func DeleteStory(c *gin.Context) {
 	}
 
 	var story models.Story
+	log.Printf("Deleting story: %+v", story)
+
 	if err := db.First(&story, id).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Story not found"})
 		return
