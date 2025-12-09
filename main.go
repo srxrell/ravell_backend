@@ -3,13 +3,13 @@ package main
 import (
 	"context"
 	"fmt"
+	"go_stories_api/database"
+	"go_stories_api/handlers"
+	"go_stories_api/middleware"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
-	"go_stories_api/database"
-	"go_stories_api/handlers"
-	"go_stories_api/middleware"
 	"syscall"
 	"time"
 
@@ -77,6 +77,8 @@ func main() {
 	r.POST("/login", handlers.Login)
 	r.POST("/refresh-token", handlers.RefreshToken)
 
+	
+
 	// 👤 Профиль (защищенные маршруты)
 	profile := r.Group("/")
 	profile.Use(middleware.JWTAuth())
@@ -132,6 +134,8 @@ func main() {
 		{
 			protectedUsers.POST("/:id/follow", handlers.FollowUser)
 			protectedUsers.POST("/:id/unfollow", handlers.UnfollowUser)
+			protectedUsers.POST("/save-player", handlers.SavePlayerID)
+
 		}
 	}
 
