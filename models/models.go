@@ -108,3 +108,12 @@ type NotInterested struct {
 	StoryID   uint      `gorm:"not null;uniqueIndex:idx_user_story" json:"story_id"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
+
+type UserDevice struct {
+    ID        uint      `gorm:"primaryKey" json:"id"`
+    UserID    uint      `gorm:"not null;index" json:"user_id"`
+    PlayerID  string    `gorm:"not null" json:"player_id"`
+    CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+
+    User User `gorm:"foreignKey:UserID" json:"user"`
+}

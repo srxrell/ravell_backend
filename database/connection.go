@@ -2,10 +2,10 @@
 package database
 
 import (
+	"go_stories_api/models"
 	"log"
 	"os"
 	"time"
-	"go_stories_api/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -73,6 +73,8 @@ func MigrateDB(db *gorm.DB) {
 		&models.Hashtag{},
 		&models.StoryHashtag{},
 		&models.NotInterested{},
+		&models.UserDevice{},
+
 	)
 	
 	if err != nil {
