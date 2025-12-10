@@ -156,6 +156,12 @@ func main() {
 		}
 	}
 
+	ws := r.Group("/ws")
+	ws.Use(middleware.JWTAuth()) // если хочешь защищённый доступ
+	{
+		ws.GET("/", handlers.WSHandler)
+	}
+
 	// 🏠 Health check с детальной информацией
 	r.GET("/health", func(c *gin.Context) {
 		sqlDB, err := db.DB()
