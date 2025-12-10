@@ -145,7 +145,7 @@ func FollowUser(c *gin.Context) {
     }
 
     if len(playerIDs) > 0 {
-        go sendPush(playerIDs, "Новый подписчик!", fmt.Sprintf("Пользователь %d подписался на вас", followerID))
+        go SendWSNotification(followeeID, "Новый подписчик!", fmt.Sprintf("Пользователь %d подписался на вас", followerID))
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
