@@ -76,7 +76,7 @@ func CreateStory(c *gin.Context) {
 	var req struct {
 		Title    string `json:"title" binding:"required"`
 		Content  string `json:"content" binding:"required"`
-		ReplyTo  *uint  `json:"reply_to"` // ДОБАВЛЕНО
+		ReplyTo  *uint  `json:"reply_to"`
 		Hashtags []uint `json:"hashtag_ids"`
 	}
 
@@ -102,59 +102,19 @@ func CreateStory(c *gin.Context) {
 		ReplyTo:   req.ReplyTo,
 	}
 
-	// Транзакция для атомарности
 	tx := db.Begin()
-	
 	if err := tx.Create(&story).Error; err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create story"})
 		return
 	}
 
-	// Если это ответ, обновляем родительскую историю
-	if req.ReplyTo != nil {
-		var parent models.Story
-		if err := db.First(&parent, *req.ReplyTo).Error; err == nil {
-
-			// Ищем девайсы владельца родительской истории
-			var devices []models.UserDevice
-			db.Where("user_id = ?", parent.UserID).Find(&devices)
-
-			playerIDs := make([]string, 0)
-			for _, d := range devices {
-				if d.PlayerID != "" {
-					playerIDs = append(playerIDs, d.PlayerID)
-				}
-			}
-
-			if len(playerIDs) > 0 {
-				go sendPush(
-					playerIDs,
-					"Новый ответ на историю",
-					fmt.Sprintf("Появился новый ответ на \"%s\"", parent.Title),
-				)
-			}
-		}
-		now := time.Now()
-		if err := tx.Model(&models.Story{}).
-			Where("id = ?", *req.ReplyTo).
-			Updates(map[string]interface{}{
-				"reply_count":   gorm.Expr("reply_count + 1"),
-				"last_reply_at": now,
-			}).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update parent story"})
-			return
-		}
-	}
-
 	// Привязка хештегов
 	for _, hashtagID := range req.Hashtags {
 		var hashtag models.Hashtag
 		if err := tx.First(&hashtag, hashtagID).Error; err != nil {
-			continue // Пропускаем несуществующие хештеги
+			continue
 		}
-
 		if err := tx.Create(&models.StoryHashtag{
 			StoryID:   story.ID,
 			HashtagID: hashtagID,
@@ -167,11 +127,58 @@ func CreateStory(c *gin.Context) {
 
 	tx.Commit()
 
-	// Загружаем связанные данные для ответа
+	// Загружаем автора, чтобы использовать username в пушах
 	db.Preload("User").Preload("User.Profile").First(&story, story.ID)
+
+	// --- Пуш подписчикам автора ---
+	var subs []models.Subscription
+	db.Where("following_id = ?", userID).Find(&subs)
+
+	var playerIDs []string
+	for _, sub := range subs {
+		var devices []models.UserDevice
+		db.Where("user_id = ?", sub.FollowerID).Find(&devices)
+		for _, d := range devices {
+			if d.PlayerID != "" {
+				playerIDs = append(playerIDs, d.PlayerID)
+			}
+		}
+	}
+
+	if len(playerIDs) > 0 {
+		go sendPush(playerIDs, "Новая история!",
+			fmt.Sprintf("%s опубликовал новую историю: %s", story.User.Username, story.Title))
+	}
+
+	// --- Пуш автору родительской истории, если это ответ ---
+	if req.ReplyTo != nil {
+		var parent models.Story
+		if err := db.Preload("User").First(&parent, *req.ReplyTo).Error; err == nil {
+			var devices []models.UserDevice
+			db.Where("user_id = ?", parent.UserID).Find(&devices)
+			var replyPlayerIDs []string
+			for _, d := range devices {
+				if d.PlayerID != "" {
+					replyPlayerIDs = append(replyPlayerIDs, d.PlayerID)
+				}
+			}
+			if len(replyPlayerIDs) > 0 {
+				go sendPush(replyPlayerIDs, "Новый ответ на историю",
+					fmt.Sprintf("Появился новый ответ на \"%s\" от %s", parent.Title, story.User.Username))
+			}
+
+			// Обновляем родительскую историю
+			now := time.Now()
+			db.Model(&models.Story{}).Where("id = ?", parent.ID).Updates(map[string]interface{}{
+				"reply_count":   gorm.Expr("reply_count + 1"),
+				"last_reply_at": now,
+			})
+		}
+	}
 
 	c.JSON(http.StatusCreated, story)
 }
+
 
 func UpdateStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
