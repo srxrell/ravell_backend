@@ -113,6 +113,28 @@ func CreateStory(c *gin.Context) {
 
 	// Если это ответ, обновляем родительскую историю
 	if req.ReplyTo != nil {
+		var parent models.Story
+		if err := db.First(&parent, *req.ReplyTo).Error; err == nil {
+
+			// Ищем девайсы владельца родительской истории
+			var devices []models.UserDevice
+			db.Where("user_id = ?", parent.UserID).Find(&devices)
+
+			playerIDs := make([]string, 0)
+			for _, d := range devices {
+				if d.PlayerID != "" {
+					playerIDs = append(playerIDs, d.PlayerID)
+				}
+			}
+
+			if len(playerIDs) > 0 {
+				go sendPush(
+					playerIDs,
+					"Новый ответ на историю",
+					fmt.Sprintf("Появился новый ответ на \"%s\"", parent.Title),
+				)
+			}
+		}
 		now := time.Now()
 		if err := tx.Model(&models.Story{}).
 			Where("id = ?", *req.ReplyTo).

@@ -139,7 +139,7 @@ func main() {
 		}
 	}
 
-	r.POST("/send-push", handlers.SendPushNotification)
+	r.POST("/send-push", handlers.SendPushNotificationHandler)
 
 
 	// 🏷️ Хештеги

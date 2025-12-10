@@ -3,12 +3,23 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
-func SendPushNotification(c *gin.Context) {
+// Переменные из .env
+var (
+	OneSignalAppID  = os.Getenv("ONESIGNAL_APP_ID")
+	OneSignalAPIKey = os.Getenv("ONESIGNAL_REST_KEY")
+)
+
+// SendPushNotificationHandler — endpoint для отправки пушей вручную
+func SendPushNotificationHandler(c *gin.Context) {
 	var req struct {
 		PlayerIDs []string `json:"player_ids"`
 		Title     string   `json:"title"`
@@ -16,29 +27,61 @@ func SendPushNotification(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
 
-	payload := map[string]interface{}{
-		"app_id":             "13381b7f-376e-48ca-80a4-c0b5633dfde6",
-		"include_player_ids": req.PlayerIDs,
-		"headings":           map[string]string{"en": req.Title},
-		"contents":           map[string]string{"en": req.Message},
+	if len(req.PlayerIDs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No player IDs provided"})
+		return
 	}
 
-	body, _ := json.Marshal(payload)
-	httpReq, _ := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(body))
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("Authorization", "Basic os_v2_app_cm4bw7zxnzemvafeyc2wgpp543xz7dm242ke37efjtsrwsnsffklhxhugvhiovlyjwfakg3ya4yfrjctxsohnficlneg7aaupoxlo6q") // REST API Key из OneSignal
-
-	client := &http.Client{}
-	resp, err := client.Do(httpReq)
-	if err != nil {
+	if err := sendPush(req.PlayerIDs, req.Title, req.Message); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Push sent successfully"})
+}
+
+// sendPush — универсальная функция для пушей
+func sendPush(playerIDs []string, title, message string) error {
+	payload := map[string]interface{}{
+		"app_id":             OneSignalAppID,
+		"include_player_ids": playerIDs,
+		"headings":           map[string]string{"en": title},
+		"contents":           map[string]string{"en": message},
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[sendPush] marshal error: %v", err)
+		return err
+	}
+
+	req, err := http.NewRequest("POST", "https://onesignal.com/api/v1/notifications", bytes.NewBuffer(body))
+	if err != nil {
+		log.Printf("[sendPush] new request error: %v", err)
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Basic "+OneSignalAPIKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Printf("[sendPush] request failed: %v", err)
+		return err
+	}
 	defer resp.Body.Close()
 
-	c.JSON(http.StatusOK, gin.H{"status": "sent"})
+	if resp.StatusCode >= 400 {
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		log.Printf("[sendPush] OneSignal error %d: %s", resp.StatusCode, string(respBody))
+		return fmt.Errorf("OneSignal error %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	log.Printf("[sendPush] Push sent to %d devices", len(playerIDs))
+	return nil
 }

@@ -1,8 +1,10 @@
 package handlers
 
 import (
-	"net/http"
+	"fmt"
 	"go_stories_api/models"
+	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -11,9 +13,9 @@ import (
 // GetUserStories получает истории пользователя
 // func GetUserStories(c *gin.Context) {
 // 	db := c.MustGet("db").(*gorm.DB)
-	
+
 // 	userID := c.Param("id")
-	
+
 // 	var user models.User
 // 	if err := db.First(&user, userID).Error; err != nil {
 // 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
@@ -111,52 +113,42 @@ func GetFollowing(c *gin.Context) {
 	})
 }
 
-// FollowUser подписывается на пользователя
 func FollowUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	
-	currentUserID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+    db := c.MustGet("db").(*gorm.DB)
+    followerID := c.MustGet("user_id").(uint)
 
-	targetUserID := c.Param("id")
-	
-	// Нельзя подписаться на себя
-	if currentUserID == targetUserID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot follow yourself"})
-		return
-	}
+    // Получаем ID того, кого подписываем, и конвертируем в uint
+    followeeIDStr := c.Param("id")
+    followeeID64, err := strconv.ParseUint(followeeIDStr, 10, 64)
+    if err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+        return
+    }
+    followeeID := uint(followeeID64)
 
-	// Проверяем существование целевого пользователя
-	var targetUser models.User
-	if err := db.First(&targetUser, targetUserID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
+    // --- сохраняем подписку ---
+    subscription := models.Subscription{
+        FollowerID:  followerID,
+        FollowingID: followeeID,
+    }
+    if err := db.Create(&subscription).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to follow"})
+        return
+    }
 
-	// Проверяем, не подписаны ли уже
-	var existingSubscription models.Subscription
-	if err := db.Where("follower_id = ? AND following_id = ?", currentUserID, targetUserID).First(&existingSubscription).Error; err == nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Already following this user"})
-		return
-	}
+    // --- пуш для followee ---
+    var devices []models.UserDevice
+    db.Where("user_id = ?", followeeID).Find(&devices)
+    var playerIDs []string
+    for _, d := range devices {
+        playerIDs = append(playerIDs, d.PlayerID)
+    }
 
-	// Создаем подписку
-	subscription := models.Subscription{
-		FollowerID:  currentUserID.(uint),
-		FollowingID: targetUser.ID,
-	}
+    if len(playerIDs) > 0 {
+        go sendPush(playerIDs, "Новый подписчик!", fmt.Sprintf("Пользователь %d подписался на вас", followerID))
+    }
 
-	if err := db.Create(&subscription).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to follow user"})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"message": "Successfully followed user",
-	})
+    c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
 }
 
 // UnfollowUser отписывается от пользователя
