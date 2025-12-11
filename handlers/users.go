@@ -126,7 +126,27 @@ func FollowUser(c *gin.Context) {
     }
     followeeID := uint(followeeID64)
 
-    // --- сохраняем подписку ---
+    // Проверка, что пользователь не подписывается сам на себя
+    if followerID == followeeID {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot follow yourself"})
+        return
+    }
+
+    // Проверяем, существует ли пользователь, на которого подписываемся
+    var followee models.User
+    if err := db.First(&followee, followeeID).Error; err != nil {
+        c.JSON(http.StatusNotFound, gin.H{"error": "User to follow not found"})
+        return
+    }
+
+    // Проверяем, что подписка ещё не существует
+    var existingSub models.Subscription
+    if err := db.Where("follower_id = ? AND following_id = ?", followerID, followeeID).First(&existingSub).Error; err == nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Already following this user"})
+        return
+    }
+
+    // Создаём подписку
     subscription := models.Subscription{
         FollowerID:  followerID,
         FollowingID: followeeID,
@@ -136,7 +156,7 @@ func FollowUser(c *gin.Context) {
         return
     }
 
-    // --- пуш для followee ---
+    // Пуш-уведомление
     var devices []models.UserDevice
     db.Where("user_id = ?", followeeID).Find(&devices)
     var playerIDs []string
