@@ -36,81 +36,75 @@ import (
 // GetFollowers получает подписчиков пользователя
 func GetFollowers(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID := c.Param("id")
-	
-	var user models.User
-	if err := db.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
 
 	var subscriptions []models.Subscription
-	if err := db.Where("following_id = ?", userID).Find(&subscriptions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch followers"})
-		return
-	}
+	db.Where("following_id = ?", userID).Find(&subscriptions)
 
-	// Получаем информацию о подписчиках
 	var result []gin.H
 	for _, sub := range subscriptions {
 		var follower models.User
-		if err := db.Preload("Profile").First(&follower, sub.FollowerID).Error; err != nil {
-			continue
+		db.Preload("Profile").First(&follower, sub.FollowerID)
+
+		// Проверяем, подписан ли текущий пользователь на этого юзера
+		currentUserID, _ := c.Get("user_id")
+		var isFollowing bool
+		if currentUserID != nil {
+			var exists int64
+			db.Model(&models.Subscription{}).
+				Where("follower_id = ? AND following_id = ?", currentUserID, follower.ID).
+				Count(&exists)
+			isFollowing = exists > 0
 		}
-		
+
 		result = append(result, gin.H{
-			"id":         follower.ID,
-			"username":   follower.Username,
-			"avatar":     follower.Profile.Avatar,
-			"bio":        follower.Profile.Bio,
-			"followed_at": sub.CreatedAt,
+			"user": gin.H{
+				"id":       follower.ID,
+				"username": follower.Username,
+				"bio":      follower.Profile.Bio,
+			},
+			"is_following": isFollowing,
+			"followed_at":  sub.CreatedAt,
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"followers": result,
-	})
+	c.JSON(http.StatusOK, gin.H{"followers": result})
 }
 
-// GetFollowing получает подписки пользователя
 func GetFollowing(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID := c.Param("id")
-	
-	var user models.User
-	if err := db.First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
 
 	var subscriptions []models.Subscription
-	if err := db.Where("follower_id = ?", userID).Find(&subscriptions).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch following"})
-		return
-	}
+	db.Where("follower_id = ?", userID).Find(&subscriptions)
 
-	// Получаем информацию о подписках
 	var result []gin.H
 	for _, sub := range subscriptions {
 		var followingUser models.User
-		if err := db.Preload("Profile").First(&followingUser, sub.FollowingID).Error; err != nil {
-			continue
+		db.Preload("Profile").First(&followingUser, sub.FollowingID)
+
+		currentUserID, _ := c.Get("user_id")
+		var isFollowing bool
+		if currentUserID != nil {
+			var exists int64
+			db.Model(&models.Subscription{}).
+				Where("follower_id = ? AND following_id = ?", currentUserID, followingUser.ID).
+				Count(&exists)
+			isFollowing = exists > 0
 		}
-		
+
 		result = append(result, gin.H{
-			"id":         followingUser.ID,
-			"username":   followingUser.Username,
-			"avatar":     followingUser.Profile.Avatar,
-			"bio":        followingUser.Profile.Bio,
-			"followed_at": sub.CreatedAt,
+			"user": gin.H{
+				"id":       followingUser.ID,
+				"username": followingUser.Username,
+				"bio":      followingUser.Profile.Bio,
+			},
+			"is_following": isFollowing,
+			"followed_at":  sub.CreatedAt,
 		})
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"following": result,
-	})
+	c.JSON(http.StatusOK, gin.H{"following": result})
 }
 
 func FollowUser(c *gin.Context) {
