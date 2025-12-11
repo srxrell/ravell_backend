@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"go_stories_api/wsservice"
 	"net/http"
 
@@ -29,8 +30,34 @@ func WSHandler(c *gin.Context) {
 
 	// просто держим соединение открытым
 	for {
-		if _, _, err := conn.ReadMessage(); err != nil {
-			break
-		}
-	}
+    _, msg, err := conn.ReadMessage()
+    if err != nil {
+        break
+    }
+
+    var payload map[string]interface{}
+    if err := json.Unmarshal(msg, &payload); err != nil {
+        continue
+    }
+
+    action, ok := payload["action"].(string)
+    if !ok {
+        continue
+    }
+
+    if action == "send_to_user" {
+        userIDFloat, ok := payload["user_id"].(float64)
+        if !ok {
+            continue
+        }
+        targetUserID := uint(userIDFloat)
+        message := payload["message"]
+
+        wsservice.SendNotification(targetUserID, map[string]interface{}{
+            "type":    "follow",
+            "message": message,
+        })
+    }
+}
+
 }
