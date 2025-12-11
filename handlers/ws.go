@@ -13,6 +13,13 @@ var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
+// структура для сообщений через WS
+type WSMessage struct {
+	Action  string `json:"action"`   // "send_to_user"
+	UserID  uint   `json:"user_id"`  // кому шлём
+	Message string `json:"message"`  // текст уведомления
+}
+
 func WSHandler(c *gin.Context) {
 	userID := c.GetUint("userID") // берём из JWT middleware
 
@@ -28,36 +35,25 @@ func WSHandler(c *gin.Context) {
 		conn.Close()
 	}()
 
-	// просто держим соединение открытым
 	for {
-    _, msg, err := conn.ReadMessage()
-    if err != nil {
-        break
-    }
+		_, msgBytes, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
 
-    var payload map[string]interface{}
-    if err := json.Unmarshal(msg, &payload); err != nil {
-        continue
-    }
+		// парсим сообщение
+		var msg WSMessage
+		if err := json.Unmarshal(msgBytes, &msg); err != nil {
+			continue // игнорируем кривые сообщения
+		}
 
-    action, ok := payload["action"].(string)
-    if !ok {
-        continue
-    }
-
-    if action == "send_to_user" {
-        userIDFloat, ok := payload["user_id"].(float64)
-        if !ok {
-            continue
-        }
-        targetUserID := uint(userIDFloat)
-        message := payload["message"]
-
-        wsservice.SendNotification(targetUserID, map[string]interface{}{
-            "type":    "follow",
-            "message": message,
-        })
-    }
-}
-
+		// если пришёл push другому пользователю
+		if msg.Action == "send_to_user" && msg.UserID != 0 && msg.Message != "" {
+			wsservice.SendNotification(msg.UserID, map[string]string{
+				"type":          "follow", // или другой тип
+				"from_username": "Система", 
+				"message":       msg.Message,
+			})
+		}
+	}
 }
