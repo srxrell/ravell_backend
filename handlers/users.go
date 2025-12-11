@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"go_stories_api/models"
+	"go_stories_api/wsservice"
 	"net/http"
 	"strconv"
 
@@ -161,7 +162,7 @@ func FollowUser(c *gin.Context) {
     }
 
     if len(playerIDs) > 0 {
-        go SendWSNotification(followeeID, "Новый подписчик!", fmt.Sprintf("Пользователь %d подписался на вас", followerID))
+        go wsservice.SendNotification(followeeID, fmt.Sprintf("Пользователь %d подписался на вас", followerID))
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
