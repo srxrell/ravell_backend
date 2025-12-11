@@ -8,11 +8,8 @@ import (
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Разрешаем запросы от любого источника (звездочка *)
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://192.168.1.104:8081")
-		
-		// Разрешаем куки и авторизационные заголовки (хотя "*" и "true" вместе не рекомендуются 
-		// для production, для dev это нормально)
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+		c.Writer.Header().Set("Access-Control-Allow-Credentials", "false")
 		
 		// Разрешаем все заголовки, включая Content-Type, Authorization, и т.д.
 		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
