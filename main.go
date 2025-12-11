@@ -157,7 +157,7 @@ func main() {
 	}
 
 	ws := r.Group("/ws")
-	ws.Use(middleware.JWTAuth()) // если хочешь защищённый доступ
+	ws.Use(middleware.WSJWTAuth()) // если хочешь защищённый доступ
 	{
 		ws.GET("/", handlers.WSHandler)
 	}

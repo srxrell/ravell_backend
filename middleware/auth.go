@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"net/http"
 	"go_stories_api/utils"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -36,4 +36,23 @@ func JWTAuth() gin.HandlerFunc {
 		c.Set("user_id", userID)
 		c.Next()
 	}
+}
+
+func WSJWTAuth() gin.HandlerFunc {
+    return func(c *gin.Context) {
+        token := c.Query("token")
+        if token == "" {
+            c.AbortWithStatusJSON(401, gin.H{"error": "No token"})
+            return
+        }
+
+        userID, err := utils.ValidateToken(token) // вместо несуществующего ParseJWT
+        if err != nil {
+            c.AbortWithStatusJSON(401, gin.H{"error": "Invalid token"})
+            return
+        }
+
+        c.Set("userID", userID)
+        c.Next()
+    }
 }
