@@ -1,11 +1,11 @@
 package handlers
 
 import (
-	"fmt"
 	"go_stories_api/models"
 	"go_stories_api/wsservice"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -114,7 +114,6 @@ func FollowUser(c *gin.Context) {
     db := c.MustGet("db").(*gorm.DB)
     followerID := c.MustGet("user_id").(uint)
 
-    // Получаем ID того, кого подписываем, и конвертируем в uint
     followeeIDStr := c.Param("id")
     followeeID64, err := strconv.ParseUint(followeeIDStr, 10, 64)
     if err != nil {
@@ -123,27 +122,23 @@ func FollowUser(c *gin.Context) {
     }
     followeeID := uint(followeeID64)
 
-    // Проверка, что пользователь не подписывается сам на себя
     if followerID == followeeID {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Cannot follow yourself"})
         return
     }
 
-    // Проверяем, существует ли пользователь, на которого подписываемся
     var followee models.User
     if err := db.First(&followee, followeeID).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "User to follow not found"})
         return
     }
 
-    // Проверяем, что подписка ещё не существует
     var existingSub models.Subscription
     if err := db.Where("follower_id = ? AND following_id = ?", followerID, followeeID).First(&existingSub).Error; err == nil {
         c.JSON(http.StatusBadRequest, gin.H{"error": "Already following this user"})
         return
     }
 
-    // Создаём подписку
     subscription := models.Subscription{
         FollowerID:  followerID,
         FollowingID: followeeID,
@@ -153,20 +148,23 @@ func FollowUser(c *gin.Context) {
         return
     }
 
-    // Пуш-уведомление
-    var devices []models.UserDevice
-    db.Where("user_id = ?", followeeID).Find(&devices)
-    var playerIDs []string
-    for _, d := range devices {
-        playerIDs = append(playerIDs, d.PlayerID)
+    // Получаем объект текущего пользователя
+    var follower models.User
+    if err := db.First(&follower, followerID).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Current user not found"})
+        return
     }
 
-    if len(playerIDs) > 0 {
-        go wsservice.SendNotification(followeeID, fmt.Sprintf("Пользователь %d подписался на вас", followerID))
-    }
+    // 💥 Отправляем WS уведомление
+    wsservice.SendNotification(followeeID, map[string]interface{}{
+        "type":      "follow",
+        "username":  follower.Username,
+        "timestamp": time.Now().Unix(),
+    })
 
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
 }
+
 
 // UnfollowUser отписывается от пользователя
 func UnfollowUser(c *gin.Context) {
