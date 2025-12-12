@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"go_stories_api/firebase"
 	"go_stories_api/models"
 
 	"github.com/gin-gonic/gin"
@@ -146,7 +147,7 @@ func CreateStory(c *gin.Context) {
 	}
 
 	if len(playerIDs) > 0 {
-		go sendPush(playerIDs, "Новая история!",
+		firebase.SendPush(playerIDs, "Новая история!",
 			fmt.Sprintf("%s опубликовал новую историю: %s", story.User.Username, story.Title))
 	}
 
@@ -163,7 +164,7 @@ func CreateStory(c *gin.Context) {
 				}
 			}
 			if len(replyPlayerIDs) > 0 {
-				go sendPush(replyPlayerIDs, "Новый ответ на историю",
+				firebase.SendPush(replyPlayerIDs, "Новый ответ на историю",
 					fmt.Sprintf("Появился новый ответ на \"%s\" от %s", parent.Title, story.User.Username))
 			}
 

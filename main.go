@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"go_stories_api/database"
+	"go_stories_api/firebase"
 	"go_stories_api/handlers"
 	"go_stories_api/middleware"
 	"log"
@@ -139,7 +140,7 @@ func main() {
 		}
 	}
 
-	r.POST("/send-push", handlers.SendPushNotificationHandler)
+	r.POST("/send-push", firebase.SendPushNotificationHandler)
 
 
 	// 🏷️ Хештеги
