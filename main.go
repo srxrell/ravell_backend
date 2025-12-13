@@ -18,68 +18,48 @@ import (
 )
 
 func main() {
-	// Загрузка .env файла
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
-	// Инициализация базы данных
 	db := database.InitDB()
-	
-	// Автомиграция
 	database.MigrateDB(db)
+
 	defer func() {
 		sqlDB, _ := db.DB()
 		sqlDB.Close()
 		log.Println("Database connection closed")
 	}()
 
-	// Настройка Gin
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Создаем новый роутер
 	r := gin.New()
-	
-	// ✅ Устанавливаем trusted proxies
 	r.SetTrustedProxies([]string{"127.0.0.1", "::1"})
-	
-	// Middleware
+
 	r.Use(gin.Recovery())
 	r.Use(middleware.CORS())
-	
-	// Логирование
+	r.Use(middleware.DatabaseMiddleware(db))
+
 	r.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
-		return fmt.Sprintf("[GIN] %s - [%s] \"%s %s %s %d %s \"%s\" %s\"\n",
+		return fmt.Sprintf(
+			"[GIN] %s [%s] \"%s %s\" %d %s\n",
 			param.ClientIP,
 			param.TimeStamp.Format(time.RFC1123),
 			param.Method,
 			param.Path,
-			param.Request.Proto,
 			param.StatusCode,
 			param.Latency,
-			param.Request.UserAgent(),
-			param.ErrorMessage,
 		)
 	}))
 
-	// Добавляем проверку соединения
-	r.Use(func(c *gin.Context) {
-		c.Next()
-	})
-
-	// Остальные middleware
-	r.Use(middleware.DatabaseMiddleware(db))
-
-	// 🔐 Аутентификация (прямые маршруты)
+	// ================= AUTH =================
 	r.POST("/register", handlers.Register)
 	r.POST("/login", handlers.Login)
 	r.POST("/refresh-token", handlers.RefreshToken)
 
-	
-
-	// 👤 Профиль (защищенные маршруты)
+	// ================= PROFILE =================
 	profile := r.Group("/")
 	profile.Use(middleware.JWTAuth())
 	{
@@ -89,29 +69,28 @@ func main() {
 		profile.DELETE("/account", handlers.DeleteAccount)
 	}
 
-	// 📖 Истории
+	// ================= STORIES =================
 	stories := r.Group("/stories")
 	{
 		stories.GET("/", handlers.GetStories)
-		stories.GET("/seeds", handlers.GetSeeds)           // ✅ ДОБАВЛЕНО
-		stories.GET("/branches", handlers.GetBranches)     // ✅ ДОБАВЛЕНО
+		stories.GET("/seeds", handlers.GetSeeds)
+		stories.GET("/branches", handlers.GetBranches)
 		stories.GET("/:id", handlers.GetStory)
 		stories.GET("/:id/comments", handlers.GetComments)
 		stories.GET("/:id/replies", handlers.GetReplies)
-		
-		// Защищенные маршруты для историй
-		protectedStories := stories.Group("")
-		protectedStories.Use(middleware.JWTAuth())
+
+		protected := stories.Group("/")
+		protected.Use(middleware.JWTAuth())
 		{
-			protectedStories.POST("/", handlers.CreateStory)
-			protectedStories.PUT("/:id", handlers.UpdateStory)
-			protectedStories.DELETE("/:id", handlers.DeleteStory)
-			protectedStories.POST("/:id/like", handlers.LikeStory)
-			protectedStories.POST("/:id/not-interested", handlers.NotInterestedStory)
+			protected.POST("/", handlers.CreateStory)
+			protected.PUT("/:id", handlers.UpdateStory)
+			protected.DELETE("/:id", handlers.DeleteStory)
+			protected.POST("/:id/like", handlers.LikeStory)
+			protected.POST("/:id/not-interested", handlers.NotInterestedStory)
 		}
 	}
 
-	// 💬 Комментарии
+	// ================= COMMENTS =================
 	comments := r.Group("/comments")
 	comments.Use(middleware.JWTAuth())
 	{
@@ -120,123 +99,87 @@ func main() {
 		comments.DELETE("/:id", handlers.DeleteComment)
 	}
 
-	// 👥 Пользователи
+	// ================= USERS =================
 	users := r.Group("/users")
 	{
 		users.GET("/:id/profile", handlers.GetUserProfile)
 		users.GET("/:id/stories", handlers.GetUserStories)
 		users.GET("/:id/followers", handlers.GetFollowers)
 		users.GET("/:id/following", handlers.GetFollowing)
-		
-		// Защищенные маршруты для подписок
-		protectedUsers := users.Group("")
-		protectedUsers.Use(middleware.JWTAuth())
-		{
-			protectedUsers.POST("/:id/follow", handlers.FollowUser)
-			protectedUsers.POST("/:id/unfollow", handlers.UnfollowUser)
-			protectedUsers.POST("/save-player", handlers.SavePlayerID)
 
+		protected := users.Group("/")
+		protected.Use(middleware.JWTAuth())
+		{
+			protected.POST("/:id/follow", handlers.FollowUser)
+			protected.POST("/:id/unfollow", handlers.UnfollowUser)
+			protected.POST("/save-player", handlers.SavePlayerID)
 		}
 	}
 
-	// r.POST("/send-push", firebase.SendPushNotificationHandler)
-
-
-	// 🏷️ Хештеги
+	// ================= HASHTAGS =================
 	hashtags := r.Group("/hashtags")
 	{
 		hashtags.GET("/", handlers.GetHashtags)
 		hashtags.GET("/:id/stories", handlers.GetHashtagStories)
-		
-		// Защищенные маршруты для хештегов
-		protectedHashtags := hashtags.Group("")
-		protectedHashtags.Use(middleware.JWTAuth())
+
+		protected := hashtags.Group("/")
+		protected.Use(middleware.JWTAuth())
 		{
-			protectedHashtags.POST("/", handlers.CreateHashtag)
+			protected.POST("/", handlers.CreateHashtag)
 		}
 	}
 
+	// ================= WS =================
 	ws := r.Group("/ws")
-	ws.Use(middleware.WSJWTAuth()) // если хочешь защищённый доступ
+	ws.Use(middleware.WSJWTAuth())
 	{
 		ws.GET("/", handlers.WSHandler)
 	}
 
-	// 🏠 Health check с детальной информацией
-	r.GET("/health", func(c *gin.Context) {
-		sqlDB, err := db.DB()
-		dbStatus := "connected"
-		if err != nil {
-			dbStatus = "error: " + err.Error()
-		} else {
-			if err := sqlDB.Ping(); err != nil {
-				dbStatus = "error: " + err.Error()
-			}
-		}
-		
-		c.JSON(200, gin.H{
-			"status":      "ok",
-			"service":     "Ravell API",
-			"version":     "1.0.0",
-			"timestamp":   time.Now().Unix(),
-			"database":    dbStatus,
-			"environment": os.Getenv("ENV"),
-			"host":        c.Request.Host,
-		})
+	// ================= ADMIN (FLUTTER WEB) =================
+	r.Static("/admin/assets", "./build/web/assets")
+	r.StaticFile("/admin/flutter.js", "./build/web/flutter.js")
+	r.StaticFile("/admin/main.dart.js", "./build/web/main.dart.js")
+
+	r.GET("/admin", func(c *gin.Context) {
+		c.File("./build/web/index.html")
 	})
 
-	// Простой root endpoint
-	r.GET("/", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "Ravell Backend API v1.0.0",
-			"health":  "/health",
-			"docs":    "Coming soon",
-		})
+	r.GET("/admin/*any", func(c *gin.Context) {
+		c.File("./build/web/index.html")
 	})
 
-	// ✅ СТАТИЧЕСКИЕ ФАЙЛЫ В КОНЦЕ
+	// ================= MEDIA =================
 	r.Static("/media", "./media")
+
+	// ================= HEALTH =================
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("PORT environment variable is not set. Render requires this.")
+		log.Fatal("PORT environment variable is not set")
 	}
 
-	// Создаем сервер с правильными настройками
 	srv := &http.Server{
-		Addr:           ":" + port,
-		Handler:        r,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		IdleTimeout:    30 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+		Addr:    ":" + port,
+		Handler: r,
 	}
 
-	// Запускаем сервер в горутине
 	go func() {
-		log.Printf("🚀 Server starting on port %s", port)
-		log.Printf("🌐 Environment: %s", os.Getenv("ENV"))
-		if os.Getenv("ENV") != "production" {
-			log.Printf("📝 Debug mode enabled")
-		}
-		
+		log.Println("🚀 Server started on port", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("❌ Failed to start server: %v", err)
+			log.Fatal(err)
 		}
 	}()
 
-	// Graceful shutdown
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
-	log.Println("🛑 Shutting down server...")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
-	if err := srv.Shutdown(ctx); err != nil {
-		log.Fatalf("❌ Server forced to shutdown: %v", err)
-	}
-	
-	log.Println("✅ Server exited properly")
+	srv.Shutdown(ctx)
+	log.Println("🛑 Server stopped")
 }
