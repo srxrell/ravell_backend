@@ -141,11 +141,16 @@ func main() {
 
 	// ================= ADMIN (FLUTTER WEB SPA) =================
 	// ВСЯ папка build/web доступна под /admin
-	r.Static("/admin", "./build/web")
+	r.StaticFS("/admin", http.Dir("./build/web"))
 
 	// SPA fallback
-	r.GET("/admin/*any", func(c *gin.Context) {
-		c.File("./build/web/index.html")
+	r.NoRoute(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if len(path) >= 6 && path[:6] == "/admin" {
+			c.File("./build/web/index.html")
+			return
+		}
+		c.JSON(404, gin.H{"error": "Not found"})
 	})
 
 	// ================= MEDIA =================
