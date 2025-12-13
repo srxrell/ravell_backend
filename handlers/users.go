@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"fmt"
-	"go_stories_api/firebase"
 	"go_stories_api/models"
 	"net/http"
 	"strconv"
@@ -171,11 +169,7 @@ func FollowUser(c *gin.Context) {
 
     // Отправляем пуш
     if len(playerIDs) > 0 {
-        firebase.SendPush(
-            playerIDs,
-            "Новый подписчик",
-            fmt.Sprintf("%s подписался на вас", follower.Username),
-        )
+        
     }
 
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})

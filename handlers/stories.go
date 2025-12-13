@@ -2,14 +2,12 @@ package handlers
 
 import (
 	"fmt"
+	"go_stories_api/models"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
-
-	"go_stories_api/firebase"
-	"go_stories_api/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -147,8 +145,7 @@ func CreateStory(c *gin.Context) {
 	}
 
 	if len(playerIDs) > 0 {
-		firebase.SendPush(playerIDs, "Новая история!",
-			fmt.Sprintf("%s опубликовал новую историю: %s", story.User.Username, story.Title))
+		
 	}
 
 	// --- Пуш автору родительской истории, если это ответ ---
@@ -164,8 +161,7 @@ func CreateStory(c *gin.Context) {
 				}
 			}
 			if len(replyPlayerIDs) > 0 {
-				firebase.SendPush(replyPlayerIDs, "Новый ответ на историю",
-					fmt.Sprintf("Появился новый ответ на \"%s\" от %s", parent.Title, story.User.Username))
+				
 			}
 
 			// Обновляем родительскую историю
