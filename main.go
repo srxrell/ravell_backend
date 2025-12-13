@@ -18,10 +18,12 @@ import (
 )
 
 func main() {
+	// ================= ENV =================
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, using system environment variables")
 	}
 
+	// ================= DB =================
 	db := database.InitDB()
 	database.MigrateDB(db)
 
@@ -31,6 +33,7 @@ func main() {
 		log.Println("Database connection closed")
 	}()
 
+	// ================= GIN =================
 	if os.Getenv("ENV") == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -136,17 +139,17 @@ func main() {
 		ws.GET("/", handlers.WSHandler)
 	}
 
-	// ================= ADMIN (FLUTTER WEB) =================
-	r.Static("/admin/assets", "./build/web/assets")
-	r.StaticFile("/admin/flutter.js", "./build/web/flutter.js")
-	r.StaticFile("/admin/main.dart.js", "./build/web/main.dart.js")
+	// ================= ADMIN (FLUTTER WEB SPA) =================
+	// ВСЯ папка build/web доступна под /admin
+	r.StaticFS("/admin", http.Dir("./build/web"))
 
-	r.GET("/admin", func(c *gin.Context) {
-		c.File("./build/web/index.html")
-	})
-
-	r.GET("/admin/*any", func(c *gin.Context) {
-		c.File("./build/web/index.html")
+	// SPA fallback (ОБЯЗАТЕЛЬНО)
+	r.NoRoute(func(c *gin.Context) {
+		if len(c.Request.URL.Path) >= 6 && c.Request.URL.Path[:6] == "/admin" {
+			c.File("./build/web/index.html")
+			return
+		}
+		c.JSON(404, gin.H{"error": "Not found"})
 	})
 
 	// ================= MEDIA =================
@@ -154,17 +157,25 @@ func main() {
 
 	// ================= HEALTH =================
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(200, gin.H{"status": "ok"})
+		c.JSON(200, gin.H{
+			"status":  "ok",
+			"service": "Ravell API",
+			"time":    time.Now().Unix(),
+		})
 	})
 
+	// ================= SERVER =================
 	port := os.Getenv("PORT")
 	if port == "" {
 		log.Fatal("PORT environment variable is not set")
 	}
 
 	srv := &http.Server{
-		Addr:    ":" + port,
-		Handler: r,
+		Addr:         ":" + port,
+		Handler:      r,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  30 * time.Second,
 	}
 
 	go func() {
@@ -174,12 +185,15 @@ func main() {
 		}
 	}()
 
+	// ================= SHUTDOWN =================
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
+	log.Println("🛑 Shutting down server...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	srv.Shutdown(ctx)
-	log.Println("🛑 Server stopped")
+
+	log.Println("✅ Server stopped")
 }
