@@ -97,8 +97,7 @@ func main() {
 	comments := r.Group("/comments")
 	comments.Use(middleware.JWTAuth())
 	{
-		comments.GET("/all", handlers.GetAllComments) 
-		stories.GET("/:id/comments", handlers.GetComments)
+		comments.GET("/all", handlers.GetAllComments)
 		comments.POST("/", handlers.CreateComment)
 		comments.PUT("/:id", handlers.UpdateComment)
 		comments.DELETE("/:id", handlers.DeleteComment)
