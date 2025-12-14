@@ -1,14 +1,31 @@
 package handlers
 
 import (
+	"go_stories_api/models"
 	"net/http"
 	"strconv"
-	"go_stories_api/models"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
+func GetAllComments(c *gin.Context) {
+    db := c.MustGet("db").(*gorm.DB)
 
+    var comments []models.Comment
+    result := db.Preload("User").Preload("User.Profile").
+        Order("created_at DESC").
+        Find(&comments)
+
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch comments"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "comments": comments,
+        "count":    len(comments),
+    })
+}
 func GetComments(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	
