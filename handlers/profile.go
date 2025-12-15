@@ -2,10 +2,10 @@ package handlers
 
 import (
 	"fmt"
+	"go_stories_api/models"
 	"net/http"
 	"os"
 	"path/filepath"
-	"go_stories_api/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +43,7 @@ func GetMyProfile(c *gin.Context) {
 		"user":    user,
 		"profile": user.Profile,
 		"stats":   stats,
+		"is_early": user.Profile.IsEarly,
 	})
 }
 
@@ -95,6 +96,7 @@ func UpdateProfile(c *gin.Context) {
 		"message": "Profile updated successfully",
 		"user":    user,
 		"profile": user.Profile,
+		"is_early": user.Profile.IsEarly,
 	})
 }
 
@@ -187,6 +189,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 		"message": "Profile updated successfully",
 		"user":    user,
 		"profile": user.Profile,
+		"is_early": user.Profile.IsEarly,
 	})
 }
 
@@ -232,5 +235,6 @@ func GetUserProfile(c *gin.Context) {
 		"stats":        stats,
 		"stories":      stories,
 		"is_following": isFollowing,
+		"is_early":     user.Profile.IsEarly,
 	})
 }
