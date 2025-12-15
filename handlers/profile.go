@@ -38,12 +38,13 @@ func GetMyProfile(c *gin.Context) {
 	db.Model(&models.Story{}).Where("user_id = ?", user.ID).Count(&stats.StoriesCount)
 	db.Model(&models.Subscription{}).Where("following_id = ?", user.ID).Count(&stats.FollowersCount)
 	db.Model(&models.Subscription{}).Where("follower_id = ?", user.ID).Count(&stats.FollowingCount)
-
+	earlyCutoff := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	isEarly := user.Profile.IsEarly || user.CreatedAt.Before(earlyCutoff)
 	c.JSON(http.StatusOK, gin.H{
 		"user":    user,
 		"profile": user.Profile,
 		"stats":   stats,
-		"is_early": user.Profile.IsEarly,
+		"is_early": isEarly,
 	})
 }
 
@@ -215,7 +216,8 @@ func GetUserProfile(c *gin.Context) {
 	db.Model(&models.Story{}).Where("user_id = ?", user.ID).Count(&stats.StoriesCount)
 	db.Model(&models.Subscription{}).Where("following_id = ?", user.ID).Count(&stats.FollowersCount)
 	db.Model(&models.Subscription{}).Where("follower_id = ?", user.ID).Count(&stats.FollowingCount)
-
+	earlyCutoff := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	isEarly := user.Profile.IsEarly || user.CreatedAt.Before(earlyCutoff)
 	// Получаем последние 10 историй пользователя
 	var stories []models.Story
 	db.Where("user_id = ?", user.ID).Order("created_at DESC").Limit(10).Find(&stories)
@@ -235,6 +237,6 @@ func GetUserProfile(c *gin.Context) {
 		"stats":        stats,
 		"stories":      stories,
 		"is_following": isFollowing,
-		"is_early":     user.Profile.IsEarly,
+		"is_early":     isEarly,
 	})
 }
