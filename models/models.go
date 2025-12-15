@@ -29,6 +29,7 @@ type Profile struct {
 	Avatar       string    `gorm:"size:500" json:"avatar"`
 	Bio          string    `gorm:"type:text" json:"bio"`
 	IsVerified   bool      `gorm:"default:false" json:"is_verified"`
+	IsEarly      bool      `gorm:"default:false" json:"is_early"`
 	OtpCode      string    `gorm:"size:6" json:"-"`
 	OtpCreatedAt time.Time `json:"-"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`

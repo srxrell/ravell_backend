@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"net/http"
 	"go_stories_api/models"
 	"go_stories_api/utils"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -49,12 +49,15 @@ func Register(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
 		return
 	}
+	earlyDeadline := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
 
 	// Создание профиля СРАЗУ ВЕРИФИЦИРОВАННЫМ
 	profile := models.Profile{
 		UserID:       user.ID,
-		IsVerified:   true, // Сразу верифицируем
-		OtpCode:      "",   // Пустой OTP
+		IsVerified:   true,
+		IsEarly:      time.Now().Before(earlyDeadline),
+		OtpCode:      "",
 		OtpCreatedAt: time.Time{},
 	}
 	
