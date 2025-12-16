@@ -205,3 +205,43 @@ func UnfollowUser(c *gin.Context) {
 		"message": "Successfully unfollowed user",
 	})
 }
+
+func GetActiveInfluencers(c *gin.Context) {
+    db := c.MustGet("db").(*gorm.DB)
+
+    var users []models.User
+    db.Preload("Profile").
+       Joins("JOIN features ON features.user_id = users.id").
+       Where("features.used_in_release = ?", true).
+       Where("profiles.is_early = ?", true).
+       Group("users.id").
+       Limit(20). // или любое нужное число
+       Find(&users)
+
+    var result []gin.H
+    for _, u := range users {
+        var storyCount int64
+        db.Model(&models.Story{}).Where("user_id = ?", u.ID).Count(&storyCount)
+
+        currentUserID, _ := c.Get("user_id")
+        var isFollowing bool
+        if currentUserID != nil {
+            var exists int64
+            db.Model(&models.Subscription{}).
+                Where("follower_id = ? AND following_id = ?", currentUserID, u.ID).
+                Count(&exists)
+            isFollowing = exists > 0
+        }
+
+        result = append(result, gin.H{
+            "id":           u.ID,
+            "username":     u.Username,
+            "avatar":       u.Profile.Avatar,
+            "story_count":  storyCount,
+            "is_following": isFollowing,
+            "is_early":     u.Profile.IsEarly,
+        })
+    }
+
+    c.JSON(http.StatusOK, gin.H{"influencers": result})
+}

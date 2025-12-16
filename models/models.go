@@ -118,3 +118,15 @@ type UserDevice struct {
 
     User User `gorm:"foreignKey:UserID" json:"user"`
 }
+
+type Feature struct {
+    ID        uint      `gorm:"primaryKey" json:"id"`
+    UserID    uint      `gorm:"not null;index" json:"user_id"` // кто предложил
+    Title     string    `gorm:"size:255;not null" json:"title"`
+    Description string  `gorm:"type:text" json:"description"`
+    UsedInRelease bool   `gorm:"default:false" json:"used_in_release"` // фича была использована
+    CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+    UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+
+    User User `gorm:"foreignKey:UserID" json:"user"`
+}

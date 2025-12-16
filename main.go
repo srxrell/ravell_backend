@@ -118,6 +118,8 @@ func main() {
 			protected.POST("/:id/unfollow", handlers.UnfollowUser)
 			protected.POST("/save-player", handlers.SavePlayerID)
 		}
+		users.GET("/influencers/early", handlers.GetActiveInfluencers)
+
 	}
 
 	// ================= HASHTAGS =================
