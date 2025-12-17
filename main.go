@@ -122,6 +122,13 @@ func main() {
 
 	}
 
+	streak := r.Group("/streak")
+	streak.Use(middleware.JWTAuth())
+	{
+		streak.POST("/update", handlers.UpdateStreak)
+		streak.GET("/", handlers.GetStreak)
+	}
+
 	// ================= HASHTAGS =================
 	hashtags := r.Group("/hashtags")
 	{

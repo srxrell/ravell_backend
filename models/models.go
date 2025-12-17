@@ -34,6 +34,9 @@ type Profile struct {
 	OtpCreatedAt time.Time `json:"-"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	StreakCount      int       `gorm:"default:0" json:"streak_count"`
+    LastActiveAt     time.Time `json:"last_active_at"`
+    StreakRewarded   bool      `gorm:"default:false" json:"streak_rewarded"`
 }
 
 // models/story.go - ДОБАВИТЬ ПОЛЯ:
