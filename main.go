@@ -110,6 +110,7 @@ func main() {
 		users.GET("/:id/stories", handlers.GetUserStories)
 		users.GET("/:id/followers", handlers.GetFollowers)
 		users.GET("/:id/following", handlers.GetFollowing)
+		users.GET("/:id/streak", handlers.GetUserStreak)
 
 		protected := users.Group("/")
 		protected.Use(middleware.JWTAuth())
