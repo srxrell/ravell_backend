@@ -127,7 +127,7 @@ func main() {
 	streak.Use(middleware.JWTAuth())
 	{
 		streak.POST("/update", handlers.UpdateStreak)
-		streak.GET("/", handlers.GetStreak)
+		streak.GET("", handlers.GetStreak)
 	}
 
 	// ================= HASHTAGS =================
