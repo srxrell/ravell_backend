@@ -26,6 +26,7 @@ func main() {
 	// ================= DB =================
 	db := database.InitDB()
 	database.MigrateDB(db)
+	database.SeedAchievements(db)
 
 	defer func() {
 		sqlDB, _ := db.DB()
@@ -61,6 +62,10 @@ func main() {
 	r.POST("/register", handlers.Register)
 	r.POST("/login", handlers.Login)
 	r.POST("/refresh-token", handlers.RefreshToken)
+
+	// =============== ACHIEVEMENTS ============
+	r.GET("/achievements", middleware.JWTAuth(), handlers.GetUserAchievements)
+
 
 	// ================= PROFILE =================
 	profile := r.Group("/")

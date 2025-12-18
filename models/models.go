@@ -133,3 +133,25 @@ type Feature struct {
 
     User User `gorm:"foreignKey:UserID" json:"user"`
 }
+
+type Achievement struct {
+	ID          uint      `gorm:"primaryKey" json:"id"`
+	Key         string    `gorm:"uniqueIndex;size:100;not null" json:"key"` // уникальный ключ, напр. "early_access"
+	Title       string    `gorm:"size:255;not null" json:"title"`
+	Description string    `gorm:"type:text" json:"description"`
+	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type UserAchievement struct {
+	ID            uint       `gorm:"primaryKey" json:"id"`
+	UserID        uint       `gorm:"not null;index" json:"user_id"`
+	AchievementID uint       `gorm:"not null;index" json:"achievement_id"`
+	Progress      float64    `gorm:"default:0" json:"progress"` // 0..1
+	Unlocked      bool       `gorm:"default:false" json:"unlocked"`
+	CreatedAt     time.Time  `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time  `gorm:"autoUpdateTime" json:"updated_at"`
+
+	User        User        `gorm:"foreignKey:UserID" json:"user"`
+	Achievement Achievement `gorm:"foreignKey:AchievementID" json:"achievement"`
+}

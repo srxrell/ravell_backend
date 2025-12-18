@@ -74,6 +74,9 @@ func MigrateDB(db *gorm.DB) {
 		&models.StoryHashtag{},
 		&models.NotInterested{},
 		&models.UserDevice{},
+		&models.Feature{},
+		&models.Achievement{},
+		&models.UserAchievement{},
 
 	)
 	
@@ -88,3 +91,19 @@ func MigrateDB(db *gorm.DB) {
 	db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
 	log.Printf("📊 Tables created: %d", tableCount)
 }
+
+func SeedAchievements(db *gorm.DB) {
+		achievements := []models.Achievement{
+			{Key: "early_access", Title: "Первооткрыватель", Description: "Войти под ранний доступ программы"},
+			{Key: "influencer", Title: "Инфлюенсер", Description: "Предложить существенную идею для релиза программы"},
+		}
+
+		for _, a := range achievements {
+			var exist models.Achievement
+			if err := db.Where("key = ?", a.Key).First(&exist).Error; err != nil {
+				if err == gorm.ErrRecordNotFound {
+					db.Create(&a)
+				}
+			}
+		}
+	}
