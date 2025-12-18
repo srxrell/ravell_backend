@@ -77,13 +77,21 @@ func GetStreak(c *gin.Context) {
 
     var profile models.Profile
     if err := db.Where("user_id = ?", userID).First(&profile).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Profile not found"})
+        c.JSON(http.StatusOK, gin.H{
+            "streak_count": 0,
+            "rewarded": false,
+        })
         return
+    }
+
+    var lastActive *time.Time
+    if !profile.LastActiveAt.IsZero() {
+        lastActive = &profile.LastActiveAt
     }
 
     c.JSON(http.StatusOK, gin.H{
         "streak_count": profile.StreakCount,
-        "last_active":  profile.LastActiveAt,
+        "last_active":  lastActive, // null вместо 0001 года
         "rewarded":     profile.StreakRewarded,
     })
 }
