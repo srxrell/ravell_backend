@@ -28,6 +28,20 @@ func GetMyProfile(c *gin.Context) {
 		return
 	}
 
+	var achievement models.Achievement
+		if err := db.Where("key = ?", "early_access").First(&achievement).Error; err == nil {
+			var userAchievement models.UserAchievement
+			if err := db.Where("user_id = ? AND achievement_id = ?", user.ID, achievement.ID).First(&userAchievement).Error; err != nil {
+				userAchievement = models.UserAchievement{
+					UserID:        user.ID,
+					AchievementID: achievement.ID,
+					Progress:      1.0,    // 100% прогресс
+            		Unlocked:      true,   // считаем выполненной
+				}
+				db.Create(&userAchievement)
+			}
+		}
+
 	// Получаем статистику
 	var stats struct {
 		StoriesCount   int64 `json:"stories_count"`

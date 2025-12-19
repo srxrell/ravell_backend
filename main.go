@@ -64,7 +64,6 @@ func main() {
 	r.POST("/refresh-token", handlers.RefreshToken)
 
 	// =============== ACHIEVEMENTS ============
-	r.GET("/achievements", middleware.JWTAuth(), handlers.GetUserAchievements)
 
 
 	// ================= PROFILE =================
@@ -116,6 +115,8 @@ func main() {
 		users.GET("/:id/followers", handlers.GetFollowers)
 		users.GET("/:id/following", handlers.GetFollowing)
 		users.GET("/:id/streak", handlers.GetUserStreak)
+		users.GET("/:id/achievements", middleware.JWTAuth(), handlers.GetUserAchievementsByID)
+
 
 		protected := users.Group("/")
 		protected.Use(middleware.JWTAuth())

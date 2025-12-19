@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"go_stories_api/models"
 	"net/http"
 
@@ -8,15 +9,22 @@ import (
 	"gorm.io/gorm"
 )
 
-func GetUserAchievements(c *gin.Context) {
+func GetUserAchievementsByID(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	userID := c.MustGet("userID").(uint)
+	idParam := c.Param("id")
+
+	var userID uint
+	if _, err := fmt.Sscan(idParam, &userID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
 
 	var userAchievements []models.UserAchievement
 	db.Preload("Achievement").Where("user_id = ?", userID).Find(&userAchievements)
 
 	c.JSON(http.StatusOK, gin.H{"achievements": userAchievements})
 }
+
 
 func UpdateAchievementProgress(db *gorm.DB, userID uint, key string, progress float64) {
 	var ach models.Achievement
