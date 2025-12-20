@@ -91,6 +91,28 @@ func MigrateDB(db *gorm.DB) {
 	db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
 	log.Printf("📊 Tables created: %d", tableCount)
 }
+func SeedUserAchievements(db *gorm.DB) {
+    var users []models.User
+    db.Where("is_early_access = ?", true).Find(&users)
+
+    var achievements []models.Achievement
+    db.Find(&achievements)
+
+    for _, u := range users {
+        for _, a := range achievements {
+            var ua models.UserAchievement
+            err := db.Where("user_id = ? AND achievement_id = ?", u.ID, a.ID).First(&ua).Error
+            if err == gorm.ErrRecordNotFound {
+                db.Create(&models.UserAchievement{
+                    UserID: u.ID,
+                    AchievementID: a.ID,
+                    Unlocked: false,
+                    Progress: 0,
+                })
+            }
+        }
+    }
+}
 
 func SeedAchievements(db *gorm.DB) {
 		achievements := []models.Achievement{

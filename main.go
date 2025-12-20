@@ -27,6 +27,8 @@ func main() {
 	db := database.InitDB()
 	database.MigrateDB(db)
 	database.SeedAchievements(db)
+	database.SeedUserAchievements(db)
+
 
 	defer func() {
 		sqlDB, _ := db.DB()
