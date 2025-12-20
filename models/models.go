@@ -139,6 +139,8 @@ type Achievement struct {
 	Key         string    `gorm:"uniqueIndex;size:100;not null" json:"key"` // уникальный ключ, напр. "early_access"
 	Title       string    `gorm:"size:255;not null" json:"title"`
 	Description string    `gorm:"type:text" json:"description"`
+	Icon        string    `gorm:"size:500" json:"icon"` // ВОТ ОНА
+
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

@@ -12,6 +12,26 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+
+func SeedAchievements(db *gorm.DB) {
+	achievements := []models.Achievement{
+		{
+			Key:         "early_access",
+			Title:       "Первооткрыватель",
+			Description: "Войти под ранний доступ программы",
+			Icon:        "https://cdn.ravell.app/achievements/early_access.png",
+		},
+	}
+
+	for _, ach := range achievements {
+		var existing models.Achievement
+		err := db.Where("key = ?", ach.Key).First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			db.Create(&ach)
+		}
+	}
+}
+
 // InitDB инициализирует подключение к базе данных
 func InitDB() *gorm.DB {
 	dsn := "host=dpg-d4lhvlk9c44c73fhpnv0-a.oregon-postgres.render.com user=mydjangodb_p5sh_user password=l4JYUoXYOzMAjBxpN3yoe5OCV5qAbTMi dbname=mydjangodb_p5sh port=5432 sslmode=require"
@@ -68,6 +88,8 @@ func MigrateDB(db *gorm.DB) {
 		&models.Achievement{},
 		&models.UserAchievement{},
 	)
+	SeedAchievements(db)
+
 
 	if err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
@@ -75,3 +97,4 @@ func MigrateDB(db *gorm.DB) {
 
 	log.Println("✅ Database migration completed")
 }
+
