@@ -93,7 +93,9 @@ func MigrateDB(db *gorm.DB) {
 }
 func SeedUserAchievements(db *gorm.DB) {
     var users []models.User
-    db.Where("is_early_access = ?", true).Find(&users)
+    db.Joins("JOIN profiles ON profiles.user_id = users.id").
+       Where("profiles.is_early = ?", true).
+       Find(&users)
 
     var achievements []models.Achievement
     db.Find(&achievements)
@@ -104,15 +106,16 @@ func SeedUserAchievements(db *gorm.DB) {
             err := db.Where("user_id = ? AND achievement_id = ?", u.ID, a.ID).First(&ua).Error
             if err == gorm.ErrRecordNotFound {
                 db.Create(&models.UserAchievement{
-                    UserID: u.ID,
+                    UserID:        u.ID,
                     AchievementID: a.ID,
-                    Unlocked: false,
-                    Progress: 0,
+                    Unlocked:      false,
+                    Progress:      0,
                 })
             }
         }
     }
 }
+
 
 func SeedAchievements(db *gorm.DB) {
 		achievements := []models.Achievement{
