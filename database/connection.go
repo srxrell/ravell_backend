@@ -2,6 +2,7 @@
 package database
 
 import (
+	"errors"
 	"go_stories_api/models"
 	"log"
 	"os"
@@ -125,10 +126,9 @@ func SeedAchievements(db *gorm.DB) {
 
 		for _, a := range achievements {
 			var exist models.Achievement
-			if err := db.Where("key = ?", a.Key).First(&exist).Error; err != nil {
-				if err == gorm.ErrRecordNotFound {
-					db.Create(&a)
-				}
+			err := db.Where("key = ?", a.Key).First(&exist).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				db.Create(&a)
 			}
 		}
 	}
