@@ -1,12 +1,11 @@
-// database/database.go
 package database
 
 import (
-	"errors"
-	"go_stories_api/models"
 	"log"
 	"os"
 	"time"
+
+	"go_stories_api/models"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -15,13 +14,8 @@ import (
 
 // InitDB инициализирует подключение к базе данных
 func InitDB() *gorm.DB {
-	// Получаем строку подключения из переменных окружения
 	dsn := "host=dpg-d4lhvlk9c44c73fhpnv0-a.oregon-postgres.render.com user=mydjangodb_p5sh_user password=l4JYUoXYOzMAjBxpN3yoe5OCV5qAbTMi dbname=mydjangodb_p5sh port=5432 sslmode=require"
-	if dsn == "" {
-		log.Fatal("DATABASE_URL environment variable is not set")
-	}
 
-	// Настраиваем логгер для GORM
 	gormLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
@@ -33,27 +27,22 @@ func InitDB() *gorm.DB {
 		},
 	)
 
-	// Подключаемся к базе данных
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: gormLogger,
 	})
-	
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// Получаем объект sql.DB для настройки пула соединений
 	sqlDB, err := db.DB()
 	if err != nil {
 		log.Fatalf("Failed to get sql.DB: %v", err)
 	}
 
-	// Настраиваем пул соединений
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// Проверяем подключение
 	if err := sqlDB.Ping(); err != nil {
 		log.Fatalf("Failed to ping database: %v", err)
 	}
@@ -78,57 +67,11 @@ func MigrateDB(db *gorm.DB) {
 		&models.Feature{},
 		&models.Achievement{},
 		&models.UserAchievement{},
-
 	)
-	
+
 	if err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
-	
+
 	log.Println("✅ Database migration completed")
-	
-	// ПРОВЕРЬ, ЧТО ТАБЛИЦЫ СОЗДАНЫ
-	var tableCount int64
-	db.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'").Scan(&tableCount)
-	log.Printf("📊 Tables created: %d", tableCount)
 }
-func SeedUserAchievements(db *gorm.DB) {
-    var users []models.User
-    db.Joins("JOIN profiles ON profiles.user_id = users.id").
-       Where("profiles.is_early = ?", true).
-       Find(&users)
-
-    var achievements []models.Achievement
-    db.Find(&achievements)
-
-    for _, u := range users {
-        for _, a := range achievements {
-            var ua models.UserAchievement
-            err := db.Where("user_id = ? AND achievement_id = ?", u.ID, a.ID).First(&ua).Error
-            if err == gorm.ErrRecordNotFound {
-                db.Create(&models.UserAchievement{
-                    UserID:        u.ID,
-                    AchievementID: a.ID,
-                    Unlocked:      false,
-                    Progress:      0,
-                })
-            }
-        }
-    }
-}
-
-
-func SeedAchievements(db *gorm.DB) {
-		achievements := []models.Achievement{
-			{Key: "early_access", Title: "Первооткрыватель", Description: "Войти под ранний доступ программы"},
-			{Key: "influencer", Title: "Инфлюенсер", Description: "Предложить существенную идею для релиза программы"},
-		}
-
-		for _, a := range achievements {
-			var exist models.Achievement
-			err := db.Where("key = ?", a.Key).First(&exist).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				db.Create(&a)
-			}
-		}
-	}

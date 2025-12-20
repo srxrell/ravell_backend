@@ -1,31 +1,53 @@
 package handlers
 
 import (
-	"fmt"
 	"go_stories_api/models"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
+// Возвращаем ачивки пользователя, создавая их на лету если их нет
 func GetUserAchievementsByID(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	idParam := c.Param("id")
 
-	var userID uint
-	if _, err := fmt.Sscan(idParam, &userID); err != nil {
+	userID, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
 		return
 	}
 
 	var userAchievements []models.UserAchievement
-	db.Preload("Achievement").Where("user_id = ?", userID).Find(&userAchievements)
+	err = db.Preload("Achievement").Where("user_id = ?", userID).Find(&userAchievements).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
+		return
+	}
+
+	// Если нет записей — создаем на лету
+	if len(userAchievements) == 0 {
+		var allAchievements []models.Achievement
+		db.Find(&allAchievements)
+
+		userAchievements = make([]models.UserAchievement, len(allAchievements))
+		for i, a := range allAchievements {
+			userAchievements[i] = models.UserAchievement{
+				UserID:        uint(userID),
+				AchievementID: a.ID,
+				Progress:      0,
+				Unlocked:      false,
+				Achievement:   a,
+			}
+		}
+	}
 
 	c.JSON(http.StatusOK, gin.H{"achievements": userAchievements})
 }
 
-
+// Обновление прогресса ачивки
 func UpdateAchievementProgress(db *gorm.DB, userID uint, key string, progress float64) {
 	var ach models.Achievement
 	if err := db.Where("key = ?", key).First(&ach).Error; err != nil {
