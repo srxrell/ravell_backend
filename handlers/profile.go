@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"go_stories_api/models"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -12,10 +13,39 @@ import (
 	"gorm.io/gorm"
 )
 
-// GetMyProfile получает профиль текущего пользователя
+var (
+	supabaseURL = "https://etzsitpaavpxmwcrerik.supabase.co"
+	supabaseKey = os.Getenv("SUPABASE_SERVICE_ROLE_KEY") // ключ берём из env
+	bucketName  = "avatars"
+)
+
+// uploadToSupabase загружает файл на Supabase через секретный ключ сервиса
+func uploadToSupabase(file io.Reader, fileName string) (string, error) {
+	url := fmt.Sprintf("%s/storage/v1/object/%s/%s", supabaseURL, bucketName, fileName)
+	req, _ := http.NewRequest("PUT", url, file)
+	req.Header.Set("apikey", supabaseKey)
+	req.Header.Set("Authorization", "Bearer "+supabaseKey)
+	req.Header.Set("Content-Type", "application/octet-stream")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("upload failed: %s", string(body))
+	}
+
+	// возвращаем публичный URL
+	publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", supabaseURL, bucketName, fileName)
+	return publicURL, nil
+}
+
+// GetMyProfile
 func GetMyProfile(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -29,20 +59,19 @@ func GetMyProfile(c *gin.Context) {
 	}
 
 	var achievement models.Achievement
-		if err := db.Where("key = ?", "early_access").First(&achievement).Error; err == nil {
-			var userAchievement models.UserAchievement
-			if err := db.Where("user_id = ? AND achievement_id = ?", user.ID, achievement.ID).First(&userAchievement).Error; err != nil {
-				userAchievement = models.UserAchievement{
-					UserID:        user.ID,
-					AchievementID: achievement.ID,
-					Progress:      1.0,    // 100% прогресс
-            		Unlocked:      true,   // считаем выполненной
-				}
-				db.Create(&userAchievement)
+	if err := db.Where("key = ?", "early_access").First(&achievement).Error; err == nil {
+		var ua models.UserAchievement
+		if err := db.Where("user_id = ? AND achievement_id = ?", user.ID, achievement.ID).First(&ua).Error; err != nil {
+			ua = models.UserAchievement{
+				UserID:        user.ID,
+				AchievementID: achievement.ID,
+				Progress:      1.0,
+				Unlocked:      true,
 			}
+			db.Create(&ua)
 		}
+	}
 
-	// Получаем статистику
 	var stats struct {
 		StoriesCount   int64 `json:"stories_count"`
 		FollowersCount int64 `json:"followers_count"`
@@ -52,20 +81,21 @@ func GetMyProfile(c *gin.Context) {
 	db.Model(&models.Story{}).Where("user_id = ?", user.ID).Count(&stats.StoriesCount)
 	db.Model(&models.Subscription{}).Where("following_id = ?", user.ID).Count(&stats.FollowersCount)
 	db.Model(&models.Subscription{}).Where("follower_id = ?", user.ID).Count(&stats.FollowingCount)
+
 	earlyCutoff := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	isEarly := user.Profile.IsEarly || user.CreatedAt.Before(earlyCutoff)
+
 	c.JSON(http.StatusOK, gin.H{
-		"user":    user,
-		"profile": user.Profile,
-		"stats":   stats,
+		"user":     user,
+		"profile":  user.Profile,
+		"stats":    stats,
 		"is_early": isEarly,
 	})
 }
 
-// UpdateProfile обновляет профиль (без изображения)
+// UpdateProfile
 func UpdateProfile(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
@@ -83,144 +113,93 @@ func UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	// Обновляем пользователя
-	if err := db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
+	db.Model(&models.User{}).Where("id = ?", userID).Updates(map[string]interface{}{
 		"first_name": req.FirstName,
 		"last_name":  req.LastName,
-	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
-		return
-	}
+	})
 
-	// Обновляем профиль
-	if err := db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
+	db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(map[string]interface{}{
 		"bio": req.Bio,
-	}).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
-		return
-	}
+	})
 
-	// Получаем обновленные данные
 	var user models.User
-	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
+	db.Preload("Profile").First(&user, userID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Profile updated successfully",
-		"user":    user,
-		"profile": user.Profile,
+		"message":  "Profile updated successfully",
+		"user":     user,
+		"profile":  user.Profile,
 		"is_early": user.Profile.IsEarly,
 	})
 }
 
-// UpdateProfileWithImage обновляет профиль с загрузкой аватара
+// UpdateProfileWithImage
 func UpdateProfileWithImage(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID, exists := c.Get("user_id")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
 		return
 	}
 
-	// Парсим multipart форму
-	if err := c.Request.ParseMultipartForm(10 << 20); // 10MB
-	err != nil {
+	if err := c.Request.ParseMultipartForm(10 << 20); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Failed to parse form"})
 		return
 	}
 
-	// Получаем текстовые поля
 	firstName := c.Request.FormValue("first_name")
 	lastName := c.Request.FormValue("last_name")
 	bio := c.Request.FormValue("bio")
 
-	// Обновляем пользователя
-	updates := map[string]interface{}{}
+	userUpdates := map[string]interface{}{}
 	if firstName != "" {
-		updates["first_name"] = firstName
+		userUpdates["first_name"] = firstName
 	}
 	if lastName != "" {
-		updates["last_name"] = lastName
+		userUpdates["last_name"] = lastName
+	}
+	if len(userUpdates) > 0 {
+		db.Model(&models.User{}).Where("id = ?", userID).Updates(userUpdates)
 	}
 
-	if len(updates) > 0 {
-		if err := db.Model(&models.User{}).Where("id = ?", userID).Updates(updates).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update user"})
-			return
-		}
-	}
+	profileUpdates := map[string]interface{}{"bio": bio}
 
-	// Обрабатываем загрузку аватара
-	avatarURL := ""
 	file, header, err := c.Request.FormFile("avatar")
 	if err == nil {
 		defer file.Close()
-
-		// Создаем папку media если её нет
-		if err := os.MkdirAll("media/avatars", 0755); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create media directory"})
+		filename := fmt.Sprintf("avatar_%d_%d%s", userID, time.Now().Unix(), filepath.Ext(header.Filename))
+		publicURL, err := uploadToSupabase(file, filename)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload avatar"})
 			return
 		}
-
-		// Генерируем уникальное имя файла
-		ext := filepath.Ext(header.Filename)
-		filename := fmt.Sprintf("avatar_%d_%d%s", userID, time.Now().Unix(), ext)
-		filePath := filepath.Join("media", "avatars", filename)
-
-		// Сохраняем файл
-		if err := c.SaveUploadedFile(header, filePath); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save avatar"})
-			return
-		}
-
-		// Формируем URL для доступа к файлу
-		avatarURL = fmt.Sprintf("/media/avatars/%s", filename)
+		profileUpdates["avatar"] = publicURL
 	}
 
-	// Обновляем профиль
-	profileUpdates := map[string]interface{}{
-		"bio": bio,
-	}
-	if avatarURL != "" {
-		profileUpdates["avatar"] = avatarURL
-	}
+	db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(profileUpdates)
 
-	if err := db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(profileUpdates).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
-		return
-	}
-
-	// Получаем обновленные данные
 	var user models.User
-	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
-		return
-	}
+	db.Preload("Profile").First(&user, userID)
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Profile updated successfully",
-		"user":    user,
-		"profile": user.Profile,
+		"message":  "Profile updated successfully",
+		"user":     user,
+		"profile":  user.Profile,
 		"is_early": user.Profile.IsEarly,
 	})
 }
 
-// GetUserProfile получает профиль любого пользователя по ID
+// GetUserProfile
 func GetUserProfile(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
-	
 	userID := c.Param("id")
-	
+
 	var user models.User
 	if err := db.Preload("Profile").First(&user, userID).Error; err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
 		return
 	}
 
-	// Получаем статистику
 	var stats struct {
 		StoriesCount   int64 `json:"stories_count"`
 		FollowersCount int64 `json:"followers_count"`
@@ -230,17 +209,17 @@ func GetUserProfile(c *gin.Context) {
 	db.Model(&models.Story{}).Where("user_id = ?", user.ID).Count(&stats.StoriesCount)
 	db.Model(&models.Subscription{}).Where("following_id = ?", user.ID).Count(&stats.FollowersCount)
 	db.Model(&models.Subscription{}).Where("follower_id = ?", user.ID).Count(&stats.FollowingCount)
+
 	earlyCutoff := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	isEarly := user.Profile.IsEarly || user.CreatedAt.Before(earlyCutoff)
-	// Получаем последние 10 историй пользователя
+
 	var stories []models.Story
 	db.Where("user_id = ?", user.ID).Order("created_at DESC").Limit(10).Find(&stories)
 
-	// Проверяем, подписан ли текущий пользователь на этого пользователя
 	isFollowing := false
 	if currentUserID, exists := c.Get("user_id"); exists {
-		var subscription models.Subscription
-		if err := db.Where("follower_id = ? AND following_id = ?", currentUserID, user.ID).First(&subscription).Error; err == nil {
+		var sub models.Subscription
+		if err := db.Where("follower_id = ? AND following_id = ?", currentUserID, user.ID).First(&sub).Error; err == nil {
 			isFollowing = true
 		}
 	}
