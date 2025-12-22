@@ -13,36 +13,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var (
-	supabaseURL = "https://etzsitpaavpxmwcrerik.supabase.co"
-	supabaseKey = os.Getenv("SUPABASE_SERVICE_ROLE_KEY") // ключ берём из env
-	bucketName  = "avatars"
-)
-
-// uploadToSupabase загружает файл на Supabase через секретный ключ сервиса
-func uploadToSupabase(file io.Reader, fileName string) (string, error) {
-	url := fmt.Sprintf("%s/storage/v1/object/%s/%s", supabaseURL, bucketName, fileName)
-	req, _ := http.NewRequest("PUT", url, file)
-	req.Header.Set("apikey", supabaseKey)
-	req.Header.Set("Authorization", "Bearer "+supabaseKey)
-	req.Header.Set("Content-Type", "application/octet-stream")
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("upload failed: %s", string(body))
-	}
-
-	// возвращаем публичный URL
-	publicURL := fmt.Sprintf("%s/storage/v1/object/public/%s/%s", supabaseURL, bucketName, fileName)
-	return publicURL, nil
-}
-
 // GetMyProfile
 func GetMyProfile(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
@@ -151,6 +121,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 	lastName := c.Request.FormValue("last_name")
 	bio := c.Request.FormValue("bio")
 
+	// --- обновляем user ---
 	userUpdates := map[string]interface{}{}
 	if firstName != "" {
 		userUpdates["first_name"] = firstName
@@ -159,24 +130,59 @@ func UpdateProfileWithImage(c *gin.Context) {
 		userUpdates["last_name"] = lastName
 	}
 	if len(userUpdates) > 0 {
-		db.Model(&models.User{}).Where("id = ?", userID).Updates(userUpdates)
+		db.Model(&models.User{}).
+			Where("id = ?", userID).
+			Updates(userUpdates)
 	}
 
-	profileUpdates := map[string]interface{}{"bio": bio}
+	// --- profile ---
+	profileUpdates := map[string]interface{}{}
+	if bio != "" {
+		profileUpdates["bio"] = bio
+	}
 
+	// --- файл ---
 	file, header, err := c.Request.FormFile("avatar")
 	if err == nil {
 		defer file.Close()
-		filename := fmt.Sprintf("avatar_%d_%d%s", userID, time.Now().Unix(), filepath.Ext(header.Filename))
-		publicURL, err := uploadToSupabase(file, filename)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload avatar"})
+
+		// гарантируем папку
+		avatarsDir := "./media/avatars"
+		if err := os.MkdirAll(avatarsDir, os.ModePerm); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create media dir"})
 			return
 		}
-		profileUpdates["avatar"] = publicURL
+
+		filename := fmt.Sprintf(
+			"avatar_%d_%d%s",
+			userID,
+			time.Now().Unix(),
+			filepath.Ext(header.Filename),
+		)
+
+		fullPath := filepath.Join(avatarsDir, filename)
+
+		out, err := os.Create(fullPath)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save avatar"})
+			return
+		}
+		defer out.Close()
+
+		if _, err := io.Copy(out, file); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write avatar"})
+			return
+		}
+
+		// URL, который будет жрать фронт
+		profileUpdates["avatar"] = "/media/avatars/" + filename
 	}
 
-	db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(profileUpdates)
+	if len(profileUpdates) > 0 {
+		db.Model(&models.Profile{}).
+			Where("user_id = ?", userID).
+			Updates(profileUpdates)
+	}
 
 	var user models.User
 	db.Preload("Profile").First(&user, userID)
@@ -188,6 +194,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 		"is_early": user.Profile.IsEarly,
 	})
 }
+
 
 // GetUserProfile
 func GetUserProfile(c *gin.Context) {
