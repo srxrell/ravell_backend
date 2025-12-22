@@ -28,7 +28,7 @@ func JWTAuth() gin.HandlerFunc {
 		token := parts[1]
 		userID, err := utils.ValidateToken(token)
 		if err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token", "details": err.Error()})
 			c.Abort()
 			return
 		}

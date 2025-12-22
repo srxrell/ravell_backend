@@ -15,25 +15,31 @@ type Claims struct {
 }
 
 func GenerateJWTToken(userID uint) (map[string]string, error) {
-	accessToken := jwt.New(jwt.SigningMethodHS256)
-	accessClaims := accessToken.Claims.(jwt.MapClaims)
-	accessClaims["user_id"] = userID
-	accessClaims["exp"] = time.Now().Add(24 * time.Hour).Unix()
-	accessClaims["iat"] = time.Now().Unix()
-	accessClaims["iss"] = "ravell-api"
-
+	// Access Token
+	accessClaims := Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "ravell-api",
+		},
+	}
+	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessString, err := accessToken.SignedString(jwtSecret)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken := jwt.New(jwt.SigningMethodHS256)
-	refreshClaims := refreshToken.Claims.(jwt.MapClaims)
-	refreshClaims["user_id"] = userID
-	refreshClaims["exp"] = time.Now().Add(365 * 24 * time.Hour).Unix()
-	refreshClaims["iat"] = time.Now().Unix()
-	refreshClaims["iss"] = "ravell-api"
-
+	// Refresh Token
+	refreshClaims := Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(365 * 24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "ravell-api",
+		},
+	}
+	refreshToken := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshString, err := refreshToken.SignedString(jwtSecret)
 	if err != nil {
 		return nil, err
@@ -60,4 +66,13 @@ func ValidateToken(tokenString string) (uint, error) {
 	}
 
 	return claims.UserID, nil
+}
+
+func RefreshToken(refreshToken string) (map[string]string, error) {
+	userId, err := ValidateToken(refreshToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return GenerateJWTToken(userId)
 }

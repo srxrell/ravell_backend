@@ -1,27 +1,62 @@
-Write-Host "FIXING PROJECT NAME TO RAVELL..." -ForegroundColor Yellow
 
-# 1. Fix go.mod
-Write-Host "1. Updating go.mod..." -ForegroundColor Cyan
-(Get-Content "go.mod") -replace "module go_stories_api", "module go_stories_api" | Set-Content "go.mod"
-Write-Host "DONE: go.mod" -ForegroundColor Green
+$baseUrl = "http://localhost:8080"
+$rand = Get-Random -Minimum 1000 -Maximum 9999
+$username = "testuser$rand"
+$email = "test$rand@mail.com"
+$password = "123456"
 
-# 2. Fix imports in all Go files
-Write-Host "2. Fixing imports..." -ForegroundColor Cyan
-Get-ChildItem -Recurse -Filter "*.go" | ForEach-Object {
-    $content = Get-Content $_.FullName -Raw
-    $newContent = $content -replace "go_stories_api/", "go_stories_api/"
-    if ($content -ne $newContent) {
-        Set-Content $_.FullName $newContent
-        Write-Host "UPDATED: $($_.Name)" -ForegroundColor Green
-    }
+Write-Host "Testing against $baseUrl with user $username"
+
+Write-Host "=== REGISTER ==="
+
+$registerBody = @{
+    username = $username
+    email    = $email
+    password = $password
+} | ConvertTo-Json
+
+$registerResponse = Invoke-RestMethod -Uri "$baseUrl/register" -Method POST -ContentType "application/json" -Body $registerBody -ErrorAction Stop
+
+Write-Host "Registered OK"
+Write-Host $registerResponse | Out-String
+
+Start-Sleep -Seconds 1
+
+Write-Host "`n=== LOGIN ==="
+
+$loginBody = @{
+    username = $username
+    password = $password
+} | ConvertTo-Json
+
+$loginResponse = Invoke-RestMethod -Uri "$baseUrl/login" -Method POST -ContentType "application/json" -Body $loginBody -ErrorAction Stop
+
+Write-Host "Login OK"
+Write-Host $loginResponse | Out-String
+
+$token = $loginResponse.tokens.access_token
+
+if (-not $token) {
+    Write-Host "NO TOKEN…" -ForegroundColor Red
+    exit 1
 }
 
-# 3. Rebuild
-Write-Host "3. Rebuilding..." -ForegroundColor Cyan
-go mod tidy
-go build -o ravell_api.exe
-Write-Host "DONE: Project rebuilt" -ForegroundColor Green
+Write-Host "`nAccess Token:"
+Write-Host $token
 
-Write-Host ""
-Write-Host "SUCCESS! PROJECT RENAMED TO RAVELL BACKEND!" -ForegroundColor Green
-Write-Host "NOW YOU ARE OFFICIAL RAVELL DEVELOPER, DUMBASS!" -ForegroundColor Red
+Start-Sleep -Seconds 1
+
+Write-Host "`n=== PROFILE ==="
+
+try {
+    $profile = Invoke-RestMethod -Uri "$baseUrl/profile" -Headers @{ Authorization = "Bearer $token" } -Method GET -ErrorAction Stop
+    Write-Host "Profile OK"
+    Write-Host $profile | Out-String
+}
+catch {
+    Write-Host "Profile request failed. Token?" -ForegroundColor Red
+    Write-Host $_
+    exit 1
+}
+
+Write-Host "`n=== DONE ==="
