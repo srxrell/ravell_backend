@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// JWTAuth проверяет Authorization header и сохраняет user_id в контексте
 func JWTAuth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
@@ -32,27 +33,28 @@ func JWTAuth() gin.HandlerFunc {
 			return
 		}
 
-		// ✅ Сохраняем как uint
+		// Вечный токен — сохраняем user_id как uint
 		c.Set("user_id", userID)
 		c.Next()
 	}
 }
 
+// WSJWTAuth для WebSocket, тоже вечный токен
 func WSJWTAuth() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        token := c.Query("token")
-        if token == "" {
-            c.AbortWithStatusJSON(401, gin.H{"error": "No token"})
-            return
-        }
+	return func(c *gin.Context) {
+		token := c.Query("token")
+		if token == "" {
+			c.AbortWithStatusJSON(401, gin.H{"error": "No token"})
+			return
+		}
 
-        userID, err := utils.ValidateToken(token) // вместо несуществующего ParseJWT
-        if err != nil {
-            c.AbortWithStatusJSON(401, gin.H{"error": "Invalid token"})
-            return
-        }
+		userID, err := utils.ValidateToken(token)
+		if err != nil {
+			c.AbortWithStatusJSON(401, gin.H{"error": "Invalid token"})
+			return
+		}
 
-        c.Set("userID", userID)
-        c.Next()
-    }
+		c.Set("userID", userID)
+		c.Next()
+	}
 }
