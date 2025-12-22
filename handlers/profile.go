@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+	"bytes"
+	"mime/multipart"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
