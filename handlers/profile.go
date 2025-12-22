@@ -104,6 +104,7 @@ func UpdateProfile(c *gin.Context) {
 }
 
 // UpdateProfileWithImage
+// UpdateProfileWithImage загружает аватарку сразу на 0x0.st
 func UpdateProfileWithImage(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	userID, exists := c.Get("user_id")
@@ -130,9 +131,7 @@ func UpdateProfileWithImage(c *gin.Context) {
 		userUpdates["last_name"] = lastName
 	}
 	if len(userUpdates) > 0 {
-		db.Model(&models.User{}).
-			Where("id = ?", userID).
-			Updates(userUpdates)
+		db.Model(&models.User{}).Where("id = ?", userID).Updates(userUpdates)
 	}
 
 	// --- profile ---
@@ -146,42 +145,35 @@ func UpdateProfileWithImage(c *gin.Context) {
 	if err == nil {
 		defer file.Close()
 
-		// гарантируем папку
-		avatarsDir := "./media/avatars"
-		if err := os.MkdirAll(avatarsDir, os.ModePerm); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create media dir"})
-			return
-		}
-
-		filename := fmt.Sprintf(
-			"avatar_%d_%d%s",
-			userID,
-			time.Now().Unix(),
-			filepath.Ext(header.Filename),
-		)
-
-		fullPath := filepath.Join(avatarsDir, filename)
-
-		out, err := os.Create(fullPath)
+		// создаём временный файл
+		tmpFilePath := fmt.Sprintf("/tmp/avatar_%d%s", time.Now().UnixNano(), filepath.Ext(header.Filename))
+		out, err := os.Create(tmpFilePath)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save avatar"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create temp file"})
 			return
 		}
-		defer out.Close()
-
 		if _, err := io.Copy(out, file); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write avatar"})
+			out.Close()
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to write temp file"})
+			return
+		}
+		out.Close()
+
+		// --- загружаем на 0x0.st ---
+		avatarURL, err := uploadTo0x0(tmpFilePath)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upload avatar"})
 			return
 		}
 
-		// URL, который будет жрать фронт
-		profileUpdates["avatar"] = "/media/avatars/" + filename
+		// удаляем временный файл
+		os.Remove(tmpFilePath)
+
+		profileUpdates["avatar"] = avatarURL
 	}
 
 	if len(profileUpdates) > 0 {
-		db.Model(&models.Profile{}).
-			Where("user_id = ?", userID).
-			Updates(profileUpdates)
+		db.Model(&models.Profile{}).Where("user_id = ?", userID).Updates(profileUpdates)
 	}
 
 	var user models.User
@@ -194,6 +186,48 @@ func UpdateProfileWithImage(c *gin.Context) {
 		"is_early": user.Profile.IsEarly,
 	})
 }
+
+// uploadTo0x0 загружает файл на 0x0.st через чистый HTTP POST
+func uploadTo0x0(filePath string) (string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
+	if err != nil {
+		return "", err
+	}
+	if _, err := io.Copy(part, file); err != nil {
+		return "", err
+	}
+	writer.Close()
+
+	req, err := http.NewRequest("POST", "https://0x0.st", body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+
+	return string(respData), nil
+}
+
 
 
 // GetUserProfile
