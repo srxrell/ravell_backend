@@ -52,10 +52,8 @@ func GetUserAchievementsByID(c *gin.Context) {
 // Обновление прогресса всех ачивок для всех пользователей
 func UpdateAllAchievements(db *gorm.DB) {
 	var achievements []models.Achievement
-	db.Find(&achievements)
 
 	var users []models.User
-	db.Find(&users)
 
 	for _, ach := range achievements {
 		for _, user := range users {
