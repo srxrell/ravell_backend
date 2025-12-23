@@ -196,10 +196,8 @@ func uploadTo0x0(filePath string) (string, error) {
 		return "", err
 	}
 	defer file.Close()
-
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-
 	part, err := writer.CreateFormFile("file", filepath.Base(file.Name()))
 	if err != nil {
 		return "", err
@@ -208,25 +206,27 @@ func uploadTo0x0(filePath string) (string, error) {
 		return "", err
 	}
 	writer.Close()
-
 	req, err := http.NewRequest("POST", "https://0x0.st", body)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-
+	// ✅ FIX: Add User-Agent to avoid "User agent not allowed" error
+	req.Header.Set("User-Agent", "Ravell/1.0 (Go-http-client)") 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
-
+	// ✅ FIX: Check for success status code
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("upload failed: %s", string(respData))
+	}
 	return string(respData), nil
 }
 
