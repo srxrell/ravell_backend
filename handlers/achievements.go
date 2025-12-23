@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// Возвращаем ачивки пользователя, создавая их на лету если их нет
+// Получение ачивок пользователя
 func GetUserAchievementsByID(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	idParam := c.Param("id")
@@ -29,18 +29,20 @@ func GetUserAchievementsByID(c *gin.Context) {
 		return
 	}
 
+	// Создаем ачивки на лету, если их нет
 	if len(userAchievements) == 0 {
 		var allAchievements []models.Achievement
 		db.Find(&allAchievements)
 
-		for _, a := range allAchievements {
-			userAchievements = append(userAchievements, models.UserAchievement{
+		userAchievements = make([]models.UserAchievement, len(allAchievements))
+		for i, a := range allAchievements {
+			userAchievements[i] = models.UserAchievement{
 				UserID:        uint(userID),
 				AchievementID: a.ID,
 				Progress:      0,
 				Unlocked:      false,
 				Achievement:   a,
-			})
+			}
 		}
 	}
 
@@ -57,38 +59,40 @@ func UpdateAllAchievements(db *gorm.DB) {
 
 	for _, ach := range achievements {
 		for _, user := range users {
-			UpdateAchievementProgress(db, user.ID, ach.ID)
+			progress := calculateProgress(db, user.ID, ach)
+			UpdateAchievementProgress(db, user.ID, ach.Key, progress)
 		}
 	}
 }
 
-// Обновление прогресса одной ачивки для конкретного пользователя
-func UpdateAchievementProgress(db *gorm.DB, userID uint, achievementID uint) {
+// Обновление прогресса одной ачивки конкретного пользователя
+func UpdateAchievementProgress(db *gorm.DB, userID uint, key string, progress float64) {
 	var ach models.Achievement
-	if err := db.First(&ach, achievementID).Error; err != nil {
+	if err := db.Where("key = ?", key).First(&ach).Error; err != nil {
 		return
 	}
 
-	progress := calculateProgress(db, userID, ach)
-
-	var ua models.UserAchievement
-	err := db.Where("user_id = ? AND achievement_id = ?", userID, achievementID).First(&ua).Error
-	if err == gorm.ErrRecordNotFound {
-		ua = models.UserAchievement{
-			UserID:        userID,
-			AchievementID: achievementID,
-			Progress:      progress,
-			Unlocked:      progress >= 1,
+	var userAch models.UserAchievement
+	err := db.Where("user_id = ? AND achievement_id = ?", userID, ach.ID).First(&userAch).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			userAch = models.UserAchievement{
+				UserID:        userID,
+				AchievementID: ach.ID,
+				Progress:      progress,
+				Unlocked:      progress >= 1,
+			}
+			db.Create(&userAch)
+			return
 		}
-		db.Create(&ua)
-	} else {
-		// обновляем прогресс и unlocked, если уже есть запись
-		ua.Progress = progress
-		if progress >= 1 {
-			ua.Unlocked = true
-		}
-		db.Save(&ua)
 	}
+
+	userAch.Progress = progress
+	if progress >= 1 {
+		userAch.Unlocked = true
+		userAch.Progress = 1
+	}
+	db.Save(&userAch)
 }
 
 // Создание ачивки через API
@@ -130,7 +134,7 @@ func CreateAchievement(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"achievement": ach})
 }
 
-// Пример функции calculateProgress
+// Подсчет прогресса ачивки
 func calculateProgress(db *gorm.DB, userID uint, ach models.Achievement) float64 {
 	var cond map[string]interface{}
 	if err := json.Unmarshal(ach.Condition, &cond); err != nil {
@@ -141,11 +145,11 @@ func calculateProgress(db *gorm.DB, userID uint, ach models.Achievement) float64
 	case "story_count":
 		var count int64
 		db.Model(&models.Story{}).Where("user_id = ?", userID).Count(&count)
-		target := int64(cond["value"].(float64))
-		if target == 0 {
+		target, ok := cond["value"].(float64)
+		if !ok || target == 0 {
 			return 0
 		}
-		progress := float64(count) / float64(target)
+		progress := float64(count) / target
 		if progress > 1 {
 			progress = 1
 		}
