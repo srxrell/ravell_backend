@@ -109,6 +109,9 @@ func main() {
 		comments.DELETE("/:id", handlers.DeleteComment)
 	}
 
+	r.POST("/achievements/create", handlers.CreateAchievement)
+
+
 	// ================= USERS =================
 	users := r.Group("/users")
 	{
