@@ -20,7 +20,7 @@ func SeedAchievements(db *gorm.DB) {
 			Key:         "early_access",
 			Title:       "Первооткрыватель",
 			Description: "Войти под ранний доступ программы",
-			IconURL:     "https://cdn.ravell.app/achievements/early_access.png",
+			Icon:        "https://cdn.ravell.app/achievements/early_access.png",
 		},
 	}
 

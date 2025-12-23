@@ -120,7 +120,7 @@ func CreateAchievement(c *gin.Context) {
 		Key:         input.Key,
 		Title:       input.Title,
 		Description: input.Description,
-		IconURL:     input.Icon,
+		Icon:        input.Icon,
 		Condition:   datatypes.JSON(input.Condition),
 	}
 
