@@ -101,7 +101,7 @@ func CreateAchievement(c *gin.Context) {
 		Key         string          `json:"key" binding:"required"`
 		Title       string          `json:"title" binding:"required"`
 		Description string          `json:"description"`
-		Icon        string          `json:"icon"`
+		Icon        string          `json:"icon_url"`
 		Condition   json.RawMessage `json:"condition"`
 	}
 
