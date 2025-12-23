@@ -13,22 +13,26 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-
+// SeedAchievements добавляет начальные ачивки
 func SeedAchievements(db *gorm.DB) {
 	achievements := []models.Achievement{
 		{
 			Key:         "early_access",
 			Title:       "Первооткрыватель",
 			Description: "Войти под ранний доступ программы",
-			IconURL:        "https://cdn.ravell.app/achievements/early_access.png",
+			IconURL:     "https://cdn.ravell.app/achievements/early_access.png",
 		},
 	}
 
 	for _, ach := range achievements {
 		var existing models.Achievement
-		err := db.Where("key = ?", ach.Key).First(&existing).Error
-		if err == gorm.ErrRecordNotFound {
-			db.Create(&ach)
+		// ищем по ключу, но не делаем db.Find
+		if err := db.Where("key = ?", ach.Key).First(&existing).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				db.Create(&ach)
+			} else {
+				log.Printf("Ошибка при проверке ачивки %s: %v", ach.Key, err)
+			}
 		}
 	}
 }
@@ -80,7 +84,8 @@ func InitDB() *gorm.DB {
 
 // MigrateDB выполняет миграции
 func MigrateDB(db *gorm.DB) {
-	err := db.AutoMigrate(
+	// делаем только AutoMigrate без каких-либо Find
+	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Profile{},
 		&models.Story{},
@@ -94,14 +99,12 @@ func MigrateDB(db *gorm.DB) {
 		&models.Feature{},
 		&models.Achievement{},
 		&models.UserAchievement{},
-	)
-	SeedAchievements(db)
-
-
-	if err != nil {
+	); err != nil {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
 
+	// Seed ачивки безопасно
+	SeedAchievements(db)
+
 	log.Println("✅ Database migration completed")
 }
-
