@@ -140,7 +140,7 @@ type Achievement struct {
 	Key         string         `gorm:"uniqueIndex;size:100;not null" json:"key"`
 	Title       string         `gorm:"size:255;not null" json:"title"`
 	Description string         `gorm:"type:text" json:"description"`
-	IconURL        string         `gorm:"size:500" json:"icon"`        // URL иконки
+	Icon        string         `gorm:"size:500" json:"icon_url"`        // URL иконки
 	Condition   datatypes.JSON `gorm:"type:jsonb" json:"condition"` // условие для прогресса
 
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
