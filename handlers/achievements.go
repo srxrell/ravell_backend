@@ -106,7 +106,7 @@ func CreateAchievement(c *gin.Context) {
 		Key:         input.Key,
 		Title:       input.Title,
 		Description: input.Description,
-		Icon:        input.Icon,                     // <- исправлено
+		IconURL:        input.Icon,                     // <- исправлено
 		Condition:   datatypes.JSON(input.Condition), // <- конвертируем в datatypes.JSON
 	}
 
