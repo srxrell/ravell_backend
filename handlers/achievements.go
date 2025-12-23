@@ -46,6 +46,52 @@ func GetUserAchievementsByID(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"achievements": userAchievements})
 }
+func UpdateAllAchievements(db *gorm.DB) {
+    var achievements []Achievement
+    db.Find(&achievements)
+
+    var users []User
+    db.Find(&users)
+
+    for _, ach := range achievements {
+        for _, user := range users {
+            progress := calculateProgress(db, user.ID, ach)
+            var ua UserAchievement
+            err := db.Where("user_id = ? AND achievement_id = ?", user.ID, ach.ID).First(&ua).Error
+            if err == gorm.ErrRecordNotFound {
+                ua = UserAchievement{
+                    UserID: user.ID,
+                    AchievementID: ach.ID,
+                    Progress: progress,
+                    Unlocked: progress >= 1,
+                }
+                db.Create(&ua)
+            } else {
+                ua.Progress = progress
+                if progress >= 1 {
+                    ua.Unlocked = true
+                    ua.Progress = 1
+                }
+                db.Save(&ua)
+            }
+        }
+    }
+}
+
+// Пример функции calculateProgress
+func calculateProgress(db *gorm.DB, userID uint, ach Achievement) float64 {
+    var cond map[string]interface{}
+    json.Unmarshal(ach.Condition, &cond)
+
+    switch cond["type"] {
+    case "story_count":
+        var count int64
+        db.Model(&Story{}).Where("user_id = ?", userID).Count(&count)
+        target := int64(cond["value"].(float64))
+        return float64(count)/float64(target)
+    }
+    return 0
+}
 
 // Обновление прогресса ачивки
 func UpdateAchievementProgress(db *gorm.DB, userID uint, key string, progress float64) {
