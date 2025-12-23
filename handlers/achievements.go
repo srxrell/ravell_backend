@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
@@ -77,6 +78,7 @@ func UpdateAllAchievements(db *gorm.DB) {
 	}
 }
 
+// Создание ачивки через API
 func CreateAchievement(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
@@ -84,8 +86,8 @@ func CreateAchievement(c *gin.Context) {
 		Key         string          `json:"key" binding:"required"`
 		Title       string          `json:"title" binding:"required"`
 		Description string          `json:"description"`
-		IconURL     string          `json:"icon_url"`
-		Condition   json.RawMessage `json:"condition"`
+		Icon        string          `json:"icon"`        // <- исправлено
+		Condition   json.RawMessage `json:"condition"`   // потом конвертим в datatypes.JSON
 	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -104,8 +106,8 @@ func CreateAchievement(c *gin.Context) {
 		Key:         input.Key,
 		Title:       input.Title,
 		Description: input.Description,
-		IconURL:     input.IconURL,
-		Condition:   input.Condition,
+		Icon:        input.Icon,                     // <- исправлено
+		Condition:   datatypes.JSON(input.Condition), // <- конвертируем в datatypes.JSON
 	}
 
 	if err := db.Create(&ach).Error; err != nil {
@@ -116,11 +118,12 @@ func CreateAchievement(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"achievement": ach})
 }
 
-
 // Пример функции calculateProgress
 func calculateProgress(db *gorm.DB, userID uint, ach models.Achievement) float64 {
 	var cond map[string]interface{}
-	json.Unmarshal(ach.Condition, &cond)
+	if err := json.Unmarshal(ach.Condition, &cond); err != nil {
+		return 0
+	}
 
 	switch cond["type"] {
 	case "story_count":
