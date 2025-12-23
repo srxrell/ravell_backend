@@ -10,6 +10,7 @@ import (
 	"time"
 	"bytes"
 	"mime/multipart"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -171,6 +172,8 @@ func UpdateProfileWithImage(c *gin.Context) {
 		// удаляем временный файл
 		os.Remove(tmpFilePath)
 
+		avatarURL = strings.TrimSpace(avatarURL)
+
 		profileUpdates["avatar"] = avatarURL
 	}
 
@@ -221,13 +224,15 @@ func uploadTo0x0(filePath string) (string, error) {
 	defer resp.Body.Close()
 	respData, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return "", err	
 	}
 	// ✅ FIX: Check for success status code
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("upload failed: %s", string(respData))
 	}
-	return string(respData), nil
+	
+	cleanURL := strings.TrimSpace(string(respData))
+	return cleanURL, nil
 }
 
 
