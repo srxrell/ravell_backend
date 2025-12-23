@@ -2,6 +2,7 @@ package models
 
 import (
 	"time"
+	"gorm.io/datatypes"
 )
 
 type User struct {
@@ -135,11 +136,12 @@ type Feature struct {
 }
 
 type Achievement struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	Key         string    `gorm:"uniqueIndex;size:100;not null" json:"key"` // уникальный ключ, напр. "early_access"
-	Title       string    `gorm:"size:255;not null" json:"title"`
-	Description string    `gorm:"type:text" json:"description"`
-	Icon        string    `gorm:"size:500" json:"icon"` // ВОТ ОНА
+	ID          uint           `gorm:"primaryKey" json:"id"`
+	Key         string         `gorm:"uniqueIndex;size:100;not null" json:"key"`
+	Title       string         `gorm:"size:255;not null" json:"title"`
+	Description string         `gorm:"type:text" json:"description"`
+	Icon        string         `gorm:"size:500" json:"icon"`        // URL иконки
+	Condition   datatypes.JSON `gorm:"type:jsonb" json:"condition"` // условие для прогресса
 
 	CreatedAt   time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt   time.Time `gorm:"autoUpdateTime" json:"updated_at"`
