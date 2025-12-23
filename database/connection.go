@@ -26,7 +26,6 @@ func SeedAchievements(db *gorm.DB) {
 
 	for _, ach := range achievements {
 		var existing models.Achievement
-		// ищем по ключу, но не делаем db.Find
 		if err := db.Where("key = ?", ach.Key).First(&existing).Error; err != nil {
 			if err == gorm.ErrRecordNotFound {
 				db.Create(&ach)
@@ -49,8 +48,9 @@ func InitDB() *gorm.DB {
 			Colorful:                  true,
 		},
 	)
+
 	dsn := fmt.Sprintf(
-		"host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=UTC",
 		os.Getenv("DB_HOST"),
 		os.Getenv("DB_USER"),
 		os.Getenv("DB_PASSWORD"),
@@ -84,7 +84,6 @@ func InitDB() *gorm.DB {
 
 // MigrateDB выполняет миграции
 func MigrateDB(db *gorm.DB) {
-	// делаем только AutoMigrate без каких-либо Find
 	if err := db.AutoMigrate(
 		&models.User{},
 		&models.Profile{},
@@ -103,7 +102,6 @@ func MigrateDB(db *gorm.DB) {
 		log.Fatalf("❌ Failed to migrate database: %v", err)
 	}
 
-	// Seed ачивки безопасно
 	SeedAchievements(db)
 
 	log.Println("✅ Database migration completed")
