@@ -9,6 +9,43 @@ import (
 	"gorm.io/gorm"
 )
 
+func DeleteHashtagByName(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+
+	// Получаем имя из URL
+	hashtagName := c.Param("name")
+	if hashtagName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Hashtag name required"})
+		return
+	}
+
+	// Ищем хештег
+	var hashtag models.Hashtag
+	if err := db.Where("name = ?", hashtagName).First(&hashtag).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Hashtag not found"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hashtag"})
+		}
+		return
+	}
+
+	// Удаляем связи с историями
+	if err := db.Exec("DELETE FROM story_hashtags WHERE hashtag_id = ?", hashtag.ID).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove hashtag relations"})
+		return
+	}
+
+	// Удаляем сам хештег
+	if err := db.Delete(&hashtag).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete hashtag"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Hashtag deleted successfully"})
+}
+
+
 func GetHashtags(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 	

@@ -110,6 +110,8 @@ func main() {
 	}
 
 	r.POST("/achievements/create", handlers.CreateAchievement)
+	r.DELETE("/hashtags/name/:name", DeleteHashtagByName)
+
 
 
 	// ================= USERS =================
