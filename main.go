@@ -110,7 +110,7 @@ func main() {
 	}
 
 	r.POST("/achievements/create", handlers.CreateAchievement)
-	r.DELETE("/hashtags/name/:name", DeleteHashtagByName)
+	r.DELETE("/hashtags/name/:name", handlers.DeleteHashtagByName)
 
 
 
