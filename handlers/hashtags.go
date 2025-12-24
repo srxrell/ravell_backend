@@ -9,40 +9,54 @@ import (
 	"gorm.io/gorm"
 )
 
-func DeleteHashtagByName(c *gin.Context) {
+func DeleteHashtag(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
-	// Получаем имя из URL
-	hashtagName := c.Param("name")
-	if hashtagName == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Hashtag name required"})
+	// Получаем ID из параметров пути /hashtags/:id
+	idParam := c.Param("id")
+	id, err := strconv.Atoi(idParam)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "ID must be a number"})
 		return
 	}
 
-	// Ищем хештег
+	// Сначала проверяем, существует ли такой хештег
 	var hashtag models.Hashtag
-	if err := db.Where("id = ?", hashtagName).First(&hashtag).Error; err != nil {
+	if err := db.First(&hashtag, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Hashtag not found"})
+			// Если ID=3 не найден, выдаст этот статус
+			c.JSON(http.StatusNotFound, gin.H{"error": "Hashtag with this ID not found"})
 		} else {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch hashtag"})
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
 		}
 		return
 	}
 
-	// Удаляем связи с историями
-	if err := db.Exec("DELETE FROM story_hashtags WHERE hashtag_id = ?", hashtag.ID).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to remove hashtag relations"})
+	// Используем транзакцию для безопасности данных
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// 1. Удаляем связи в связующей таблице (story_hashtags)
+		// Это предотвратит ошибку Foreign Key Constraint
+		if err := tx.Exec("DELETE FROM story_hashtags WHERE hashtag_id = ?", id).Error; err != nil {
+			return err
+		}
+
+		// 2. Удаляем сам хештег
+		if err := tx.Delete(&hashtag).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete hashtag and its relations"})
 		return
 	}
 
-	// Удаляем сам хештег
-	if err := db.Delete(&hashtag).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete hashtag"})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"message": "Hashtag deleted successfully"})
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Hashtag deleted successfully",
+		"id":      id,
+		"name":    hashtag.Name,
+	})
 }
 
 
