@@ -21,7 +21,7 @@ func DeleteHashtagByName(c *gin.Context) {
 
 	// Ищем хештег
 	var hashtag models.Hashtag
-	if err := db.Where("name = ?", hashtagName).First(&hashtag).Error; err != nil {
+	if err := db.Where("id = ?", hashtagName).First(&hashtag).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Hashtag not found"})
 		} else {
