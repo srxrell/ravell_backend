@@ -265,15 +265,17 @@ func GetActiveInfluencers(c *gin.Context) {
     db := c.MustGet("db").(*gorm.DB)
 
     var users []models.User
-    db.Preload("Profile").
-       Joins("JOIN features ON features.user_id = users.id").
-       Where("features.used_in_release = ?", true).
-       Where("profiles.is_early = ?", true).
-       Group("users.id").
-       Limit(20). // или любое нужное число
-       Find(&users)
+    db.
+        Joins("JOIN profiles ON profiles.user_id = users.id").
+        Joins("JOIN features ON features.user_id = users.id").
+        Where("features.used_in_release = ?", true).
+        Where("profiles.is_early = ?", true).
+        Group("users.id").
+        Limit(20).
+        Find(&users)
 
-    var result []gin.H
+    result := make([]gin.H, 0)
+
     for _, u := range users {
         var storyCount int64
         db.Model(&models.Story{}).Where("user_id = ?", u.ID).Count(&storyCount)
@@ -298,7 +300,9 @@ func GetActiveInfluencers(c *gin.Context) {
         })
     }
 
-    c.JSON(http.StatusOK, gin.H{"influencers": result})
+    c.JSON(http.StatusOK, gin.H{
+        "influencers": result, // всегда []
+    })
 }
 
 func AddInfluencer(c *gin.Context) {

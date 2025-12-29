@@ -8,11 +8,11 @@ $headers = @{
 $body = @{
   username    = "Murad"
   title       = "Офигенный инфлюенсер"
-  description = "Предложил доработки по ux, исправления багов, + форматирования истории + новый экран ожидания публикаици истории"
+  description = "UX идеи, багфиксы, новый экран ожидания"
 } | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod `
-  -Uri "https://ravell-backend-1.onrender.com/users/influencers/add" `
+  -Uri "https://ravell-backend-1.onrender.com/users/influencers/activate" `
   -Method POST `
   -Headers $headers `
   -Body $body
