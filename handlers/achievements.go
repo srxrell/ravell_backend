@@ -131,7 +131,54 @@ func CreateAchievement(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"achievement": ach})
 }
+func AddAchievementToUser(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
 
+	var input struct {
+		UserID       uint   `json:"user_id" binding:"required"`
+		AchievementKey string `json:"key" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Проверяем, существует ли ачивка
+	var ach models.Achievement
+	if err := db.Where("key = ?", input.AchievementKey).First(&ach).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Achievement not found"})
+		return
+	}
+
+	// Проверяем, существует ли уже UserAchievement
+	var userAch models.UserAchievement
+	err := db.Where("user_id = ? AND achievement_id = ?", input.UserID, ach.ID).First(&userAch).Error
+	if err == nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "User already has this achievement"})
+		return
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
+		return
+	}
+
+	// Создаём UserAchievement
+	userAch = models.UserAchievement{
+		UserID:        input.UserID,
+		AchievementID: ach.ID,
+		Progress:      0,
+		Unlocked:      false,
+	}
+
+	if err := db.Create(&userAch).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot create UserAchievement"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Achievement added to user", "user_achievement": userAch})
+}
 // Подсчет прогресса ачивки
 func calculateProgress(db *gorm.DB, userID uint, ach models.Achievement) float64 {
 	var cond map[string]interface{}
