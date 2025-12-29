@@ -135,6 +135,8 @@ func main() {
 			protected.POST("/influencers/add", handlers.AddInfluencer)
 		}
 		users.GET("/influencers/early", handlers.GetActiveInfluencers)
+		users.POST("/influencers/activate", middleware.JWTAuth(), handlers.ActivateInfluencer)
+
 
 	}
 

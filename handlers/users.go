@@ -176,7 +176,61 @@ func FollowUser(c *gin.Context) {
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
 }
 
+func ActivateInfluencer(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
 
+	type Body struct {
+		Username    string `json:"username" binding:"required"`
+		Title       string `json:"title" binding:"required"`
+		Description string `json:"description"`
+	}
+
+	var body Body
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid body"})
+		return
+	}
+
+	var user models.User
+	if err := db.Preload("Profile").
+		Where("username = ?", body.Username).
+		First(&user).Error; err != nil {
+
+		c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+		return
+	}
+
+	// 1️⃣ Feature (upsert)
+	var feature models.Feature
+	err := db.Where("user_id = ?", user.ID).First(&feature).Error
+
+	if err == gorm.ErrRecordNotFound {
+		feature = models.Feature{
+			UserID:        user.ID,
+			Title:         body.Title,
+			Description:   body.Description,
+			UsedInRelease: true,
+		}
+		db.Create(&feature)
+	} else {
+		db.Model(&feature).Updates(map[string]any{
+			"title":            body.Title,
+			"description":      body.Description,
+			"used_in_release":  true,
+		})
+	}
+
+	// 2️⃣ Profile → early
+	db.Model(&models.Profile{}).
+		Where("user_id = ?", user.ID).
+		Update("is_early", true)
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":  "Influencer activated",
+		"user_id":  user.ID,
+		"username": user.Username,
+	})
+}
 
 // UnfollowUser отписывается от пользователя
 func UnfollowUser(c *gin.Context) {
