@@ -268,6 +268,7 @@ func GetActiveInfluencers(c *gin.Context) {
 db.Preload("Profile").
    Preload("Feature").
    Joins("JOIN features ON features.user_id = users.id").
+   Joins("JOIN profiles ON profiles.user_id = users.id").
    Where("features.used_in_release = ?", true).
    Where("profiles.is_early = ?", true).
    Group("users.id").
