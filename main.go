@@ -123,6 +123,7 @@ func main() {
 		users.GET("/:id/following", handlers.GetFollowing)
 		users.GET("/:id/streak", handlers.GetUserStreak)
 		users.GET("/:id/achievements", middleware.JWTAuth(), handlers.GetUserAchievementsByID)
+		protected.POST("/influencers/add", handlers.AddInfluencer)
 
 
 		protected := users.Group("/")

@@ -245,3 +245,48 @@ func GetActiveInfluencers(c *gin.Context) {
 
     c.JSON(http.StatusOK, gin.H{"influencers": result})
 }
+
+func AddInfluencer(c *gin.Context) {
+    db := c.MustGet("db").(*gorm.DB)
+
+    type requestBody struct {
+        Username    string `json:"username" binding:"required"`
+        Title       string `json:"title" binding:"required"`
+        Description string `json:"description"`
+    }
+
+    var body requestBody
+    if err := c.ShouldBindJSON(&body); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+        return
+    }
+
+    var user models.User
+    if err := db.Where("username = ?", body.Username).First(&user).Error; err != nil {
+        if err == gorm.ErrRecordNotFound {
+            c.JSON(http.StatusNotFound, gin.H{"error": "User not found"})
+        } else {
+            c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        }
+        return
+    }
+
+    feature := models.Feature{
+        UserID:        user.ID,
+        Title:         body.Title,
+        Description:   body.Description,
+        UsedInRelease: false,
+        CreatedAt:     time.Now(),
+        UpdatedAt:     time.Now(),
+    }
+
+    if err := db.Create(&feature).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{
+        "message": "Influencer added successfully",
+        "feature": feature,
+    })
+}
