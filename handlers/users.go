@@ -265,14 +265,14 @@ func GetActiveInfluencers(c *gin.Context) {
     db := c.MustGet("db").(*gorm.DB)
 
     var users []models.User
-    db.
-        Joins("JOIN profiles ON profiles.user_id = users.id").
-        Joins("JOIN features ON features.user_id = users.id").
-        Where("features.used_in_release = ?", true).
-        Where("profiles.is_early = ?", true).
-        Group("users.id").
-        Limit(20).
-        Find(&users)
+db.Preload("Profile").
+   Preload("Feature").
+   Joins("JOIN features ON features.user_id = users.id").
+   Where("features.used_in_release = ?", true).
+   Where("profiles.is_early = ?", true).
+   Group("users.id").
+   Limit(20).
+   Find(&users)
 
     result := make([]gin.H, 0)
 
@@ -291,13 +291,15 @@ func GetActiveInfluencers(c *gin.Context) {
         }
 
         result = append(result, gin.H{
-            "id":           u.ID,
-            "username":     u.Username,
-            "avatar":       u.Profile.Avatar,
-            "story_count":  storyCount,
-            "is_following": isFollowing,
-            "is_early":     u.Profile.IsEarly,
-        })
+    "id":           u.ID,
+    "username":     u.Username,
+    "avatar":       u.Profile.Avatar,
+    "story_count":  storyCount,
+    "is_following": isFollowing,
+    "is_early":     u.Profile.IsEarly,
+    "title":        u.Feature.Title,
+    "description":  u.Feature.Description,
+})
     }
 
     c.JSON(http.StatusOK, gin.H{

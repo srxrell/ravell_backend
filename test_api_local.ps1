@@ -9,7 +9,7 @@ $body = @{
   username    = "Murad"
   title       = "Офигенный инфлюенсер"
   description = "UX идеи, багфиксы, новый экран ожидания"
-} | ConvertTo-Json -Depth 5
+}  | ConvertTo-Json -Depth 5
 
 Invoke-RestMethod `
   -Uri "https://ravell-backend-1.onrender.com/users/influencers/activate" `
