@@ -179,6 +179,61 @@ func AddAchievementToUser(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Achievement added to user", "user_achievement": userAch})
 }
+func GrantInfluencerAchievement(c *gin.Context) {
+	db := c.MustGet("db").(*gorm.DB)
+
+	var input struct {
+		UserID uint `json:"user_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Ищем ачивку "влиятельный"
+	var ach models.Achievement
+	if err := db.Where("key = ?", "influential").First(&ach).Error; err != nil {
+		// Если нет — создаём
+		ach = models.Achievement{
+			Key:         "influential",
+			Title:       "Влиятельный",
+			Description: "Предложить важные обновления в приложении",
+			Icon:        "https://cdn.ravell.app/achievements/influential.png", // можно свой URL
+		}
+		db.Create(&ach)
+	}
+
+	// Проверяем, есть ли уже UserAchievement
+	var userAch models.UserAchievement
+	err := db.Where("user_id = ? AND achievement_id = ?", input.UserID, ach.ID).First(&userAch).Error
+	if err == nil {
+		// Уже есть
+		c.JSON(http.StatusConflict, gin.H{"error": "User already has this achievement"})
+		return
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "DB error"})
+		return
+	}
+
+	// Создаём с Unlocked = true
+	userAch = models.UserAchievement{
+		UserID:        input.UserID,
+		AchievementID: ach.ID,
+		Progress:      1,
+		Unlocked:      true,
+	}
+
+	if err := db.Create(&userAch).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Cannot grant achievement"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Achievement granted", "user_achievement": userAch})
+}
+
 // Подсчет прогресса ачивки
 func calculateProgress(db *gorm.DB, userID uint, ach models.Achievement) float64 {
 	var cond map[string]interface{}
