@@ -14,7 +14,7 @@ type User struct {
 	LastName  string    `gorm:"size:150" json:"last_name"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
-	Feature  Feature `gorm:"foreignKey:UserID"` // ← добавляем связь
+	Feature  *Feature `gorm:"foreignKey:UserID"` // ← добавляем связь
 	
 	// Отношения
 	Profile    Profile     `gorm:"foreignKey:UserID" json:"profile"`
@@ -133,7 +133,7 @@ type Feature struct {
     CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
     UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 
-    User User `gorm:"foreignKey:UserID" json:"user"`
+    User *User `gorm:"foreignKey:UserID" json:"user"`
 }
 
 type Achievement struct {
