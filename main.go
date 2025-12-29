@@ -124,6 +124,7 @@ func main() {
 		users.GET("/:id/streak", handlers.GetUserStreak)
 		users.GET("/:id/achievements", middleware.JWTAuth(), handlers.GetUserAchievementsByID)
 		
+		
 
 
 		protected := users.Group("/")
@@ -133,6 +134,7 @@ func main() {
 			protected.POST("/:id/unfollow", handlers.UnfollowUser)
 			protected.POST("/save-player", handlers.SavePlayerID)
 			protected.POST("/influencers/add", handlers.AddInfluencer)
+			protected.POST("/achievements/grant_influential", handlers.GrantInfluencerAchievement)
 		}
 		users.GET("/influencers/early", handlers.GetActiveInfluencers)
 		users.POST("/influencers/activate", middleware.JWTAuth(), handlers.ActivateInfluencer)
