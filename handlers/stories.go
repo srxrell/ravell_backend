@@ -86,9 +86,10 @@ func CreateStory(c *gin.Context) {
 
 	// Проверка 100 слов
 	wordCount := countWords(req.Content)
-	if wordCount != 100 {
+	// разрешаем истории с > 20 <= 100 слов
+	if wordCount < 20 || wordCount > 100 {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("Нужно ровно 100 слов. Сейчас: %d", wordCount),
+			"error": fmt.Sprintf("Нужно от 20 до 100 слов. Сейчас: %d", wordCount),
 		})
 		return
 	}
