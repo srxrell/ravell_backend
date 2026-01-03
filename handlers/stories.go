@@ -241,10 +241,10 @@ func DeleteStory(c *gin.Context) {
 		return
 	}
 
-	if story.UserID != userID {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Not your story"})
-		return
-	}
+	// if story.UserID != userID {
+	// 	c.JSON(http.StatusForbidden, gin.H{"error": "Not your story"})
+	// 	return
+	// }
 
 	// Транзакция для безопасного удаления
 	tx := db.Begin()
