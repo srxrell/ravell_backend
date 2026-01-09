@@ -124,6 +124,13 @@ type UserDevice struct {
     User User `gorm:"foreignKey:UserID" json:"user"`
 }
 
+type PostView struct {
+    ID        uint      `gorm:"primaryKey"`
+    PostID    int       `gorm:"uniqueIndex:idx_post_user"`
+    UserID    uint      `gorm:"uniqueIndex:idx_post_user"`
+    CreatedAt time.Time `gorm:"autoCreateTime"`
+}
+
 type Feature struct {
     ID        uint      `gorm:"primaryKey" json:"id"`
     UserID    uint      `gorm:"not null;index" json:"user_id"` // кто предложил

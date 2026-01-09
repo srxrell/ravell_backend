@@ -50,6 +50,26 @@ func GetStories(c *gin.Context) {
 	})
 }
 
+func RegisterView(db *gorm.DB, postId int, userId uint) error {
+    query := `
+        INSERT INTO post_views (post_id, user_id) 
+        VALUES (?, ?) 
+        ON CONFLICT (post_id, user_id) DO NOTHING`
+    
+    result := db.Exec(query, postId, userId)
+    if result.Error != nil {
+        return result.Error
+    }
+
+    if result.RowsAffected > 0 {
+        err := db.Model(&models.Story{}).Where("id = ?", postId).
+            Update("views", gorm.Expr("views + 1")).Error
+        return err
+    }
+
+    return nil
+}
+
 func GetStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
@@ -65,8 +85,16 @@ func GetStory(c *gin.Context) {
 		return
 	}
 
+	currentUserID := c.MustGet("user_id").(uint)
+
+	go func(database *gorm.DB, pID int, uID uint) {
+		if err := RegisterView(database, pID, uID); err != nil {
+			log.Printf("Background view error: %v", err)
+		}
+	}(db, id, currentUserID)
 	c.JSON(http.StatusOK, story)
 }
+
 
 func CreateStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
