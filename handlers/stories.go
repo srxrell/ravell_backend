@@ -254,7 +254,6 @@ func UpdateStory(c *gin.Context) {
 }
 
 func DeleteStory(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
 	userID := c.MustGet("user_id").(uint)
 
 	id, err := strconv.Atoi(c.Param("id"))

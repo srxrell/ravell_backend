@@ -58,6 +58,9 @@ type Story struct {
 	ImageURL  string    `gorm:"size:500" json:"image_url"`
 	CreatedAt time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+
+	// просмотры (ОДА БЕЗ НАКРУТКИ 😎😎😎)
+	Views int `gorm:"default:0" json:"views"`
 	
 	// Отношения
 	User      User           `gorm:"foreignKey:UserID" json:"user"`
