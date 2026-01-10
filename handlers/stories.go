@@ -85,13 +85,16 @@ func GetStory(c *gin.Context) {
 		return
 	}
 
-	currentUserID := c.MustGet("user_id").(uint)
+	// ✅ БЕЗОПАСНОЕ ПОЛУЧЕНИЕ user_id (без паники)
+	if uID, exists := c.Get("user_id"); exists {
+		currentUserID := uID.(uint)
+		go func(database *gorm.DB, pID int, uID uint) {
+			if err := RegisterView(database, pID, uID); err != nil {
+				log.Printf("Background view error: %v", err)
+			}
+		}(db, id, currentUserID)
+	}
 
-	go func(database *gorm.DB, pID int, uID uint) {
-		if err := RegisterView(database, pID, uID); err != nil {
-			log.Printf("Background view error: %v", err)
-		}
-	}(db, id, currentUserID)
 	c.JSON(http.StatusOK, story)
 }
 

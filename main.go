@@ -84,7 +84,7 @@ func main() {
 		stories.GET("/", handlers.GetStories)
 		stories.GET("/seeds", handlers.GetSeeds)
 		stories.GET("/branches", handlers.GetBranches)
-		stories.GET("/:id", handlers.GetStory)
+		stories.GET("/:id", middleware.OptionalJWTAuth(), handlers.GetStory)
 		stories.GET("/:id/comments", handlers.GetComments)
 		stories.GET("/:id/replies", handlers.GetReplies)
 

@@ -58,3 +58,31 @@ func WSJWTAuth() gin.HandlerFunc {
 		c.Next()
 	}
 }
+
+// OptionalJWTAuth пытается получить user_id из токена, но не прерывает запрос если его нет
+func OptionalJWTAuth() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			c.Next()
+			return
+		}
+
+		parts := strings.Split(authHeader, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			c.Next()
+			return
+		}
+
+		token := parts[1]
+		userID, err := utils.ValidateToken(token)
+		if err != nil {
+			// Если токен невалиден, просто продолжаем как гость
+			c.Next()
+			return
+		}
+
+		c.Set("user_id", userID)
+		c.Next()
+	}
+}
