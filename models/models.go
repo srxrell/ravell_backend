@@ -61,6 +61,8 @@ type Story struct {
 
 	// просмотры (ОДА БЕЗ НАКРУТКИ 😎😎😎)
 	Views int `gorm:"default:0" json:"views"`
+	// отправки поделиться или как бля это назвать
+	Shares int `gorm:"default:0" json:"shares"`
 	
 	// Отношения
 	User      User           `gorm:"foreignKey:UserID" json:"user"`

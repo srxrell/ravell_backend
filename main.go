@@ -111,6 +111,7 @@ func main() {
 
 	r.POST("/achievements/create", handlers.CreateAchievement)
 	r.DELETE("/hashtags/:id", handlers.DeleteHashtag)
+	r.POST("/stories/:id/share", handlers.ShareStory)
 
 
 

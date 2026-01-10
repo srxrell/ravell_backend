@@ -264,6 +264,22 @@ func UpdateStory(c *gin.Context) {
 	c.JSON(http.StatusOK, story)
 }
 
+func ShareStory(c *gin.Context) {
+    db := c.MustGet("db").(*gorm.DB)
+    id, _ := strconv.Atoi(c.Param("id"))
+
+    // Просто увеличиваем счетчик репостов на 1
+    err := db.Model(&models.Story{}).Where("id = ?", id).
+        Update("shares", gorm.Expr("shares + 1")).Error
+
+    if err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update shares"})
+        return
+    }
+
+    c.JSON(http.StatusOK, gin.H{"message": "Share counted"})
+}
+
 func DeleteStory(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
