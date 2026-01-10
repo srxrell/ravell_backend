@@ -80,7 +80,26 @@ func InitDB() *gorm.DB {
 
 // MigrateDB выполняет миграции
 func MigrateDB(db *gorm.DB) {
-    // убираем AutoMigrate
-    SeedAchievements(db) // только seed, если таблица существует
-    log.Println("✅ Database ready (skipped migration)")
+	err := db.AutoMigrate(
+		&models.User{},
+		&models.Profile{},
+		&models.Story{},
+		&models.Comment{},
+		&models.Like{},
+		&models.Subscription{},
+		&models.Hashtag{},
+		&models.StoryHashtag{},
+		&models.NotInterested{},
+		&models.UserDevice{},
+		&models.PostView{},
+		&models.Feature{},
+		&models.Achievement{},
+		&models.UserAchievement{},
+	)
+	if err != nil {
+		log.Printf("Migration error: %v", err)
+	}
+
+	SeedAchievements(db)
+	log.Println("✅ Database migration and seeding completed")
 }
