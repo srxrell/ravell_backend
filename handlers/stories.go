@@ -51,22 +51,29 @@ func GetStories(c *gin.Context) {
 }
 
 func RegisterView(db *gorm.DB, postId int, userId uint) error {
+    log.Printf("Registering view for story %d by user %d", postId, userId)
     query := `
-        INSERT INTO post_views (post_id, user_id) 
-        VALUES (?, ?) 
+        INSERT INTO post_views (post_id, user_id, created_at) 
+        VALUES (?, ?, NOW()) 
         ON CONFLICT (post_id, user_id) DO NOTHING`
     
     result := db.Exec(query, postId, userId)
     if result.Error != nil {
+        log.Printf("RegisterView INSERT error: %v", result.Error)
         return result.Error
     }
 
     if result.RowsAffected > 0 {
+        log.Printf("New unique view recorded for story %d", postId)
         err := db.Model(&models.Story{}).Where("id = ?", postId).
-            Update("views", gorm.Expr("views + 1")).Error
+            Update("views", gorm.Expr("COALESCE(views, 0) + 1")).Error
+        if err != nil {
+            log.Printf("Error updating story views count: %v", err)
+        }
         return err
     }
 
+    log.Printf("View for story %d by user %d already exists (or conflict)", postId, userId)
     return nil
 }
 
@@ -88,6 +95,7 @@ func GetStory(c *gin.Context) {
 	// ✅ БЕЗОПАСНОЕ ПОЛУЧЕНИЕ user_id (без паники)
 	if uID, exists := c.Get("user_id"); exists {
 		currentUserID := uID.(uint)
+		log.Printf("User %d is viewing story %d", currentUserID, id)
 		go func(database *gorm.DB, pID int, uID uint) {
 			if err := RegisterView(database, pID, uID); err != nil {
 				log.Printf("Background view error: %v", err)
