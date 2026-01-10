@@ -53,8 +53,8 @@ func GetStories(c *gin.Context) {
 func RegisterView(db *gorm.DB, postId int, userId uint) error {
     log.Printf("Registering view for story %d by user %d", postId, userId)
     query := `
-        INSERT INTO post_views (post_id, user_id) 
-        VALUES (?, ?) 
+        INSERT INTO post_views (post_id, user_id, created_at) 
+        VALUES (?, ?, NOW()) 
         ON CONFLICT (post_id, user_id) DO NOTHING`
     
     result := db.Exec(query, postId, userId)

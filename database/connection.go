@@ -101,5 +101,10 @@ func MigrateDB(db *gorm.DB) {
 	}
 
 	SeedAchievements(db)
+	
+	// Принудительно добавляем колонки, если AutoMigrate буксует
+	db.Exec("ALTER TABLE stories ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0")
+	db.Exec("ALTER TABLE post_views ADD COLUMN IF NOT EXISTS created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()")
+
 	log.Println("✅ Database migration and seeding completed")
 }
