@@ -25,21 +25,70 @@ func countWords(text string) int {
 func GetStories(c *gin.Context) {
 	db := c.MustGet("db").(*gorm.DB)
 
-	searchTerm := c.Query("search")
-	query := db.Preload("User").Preload("User.Profile").Order("created_at DESC")
+	// 1. Получаем ID текущего пользователя (для персонализации)
+	// Если пользователь не авторизован (гость), userID будет 0
+	var userID uint
+	if uID, exists := c.Get("user_id"); exists {
+		userID = uID.(uint)
+	}
 
+	// 2. Пагинация (обязательно для ленты)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	offset := (page - 1) * limit
+
+	// Базовый запрос
+	query := db.Table("stories").
+		Select("stories.*").
+		Preload("User").
+		Preload("User.Profile")
+
+	searchTerm := c.Query("search")
+
+	// --- ЛОГИКА 1: ПОИСК (Если ищут, алгоритм отключаем, сортируем по новизне) ---
 	if searchTerm != "" {
 		searchPattern := "%" + searchTerm + "%"
 		query = query.Where(
-			"title LIKE ? OR content LIKE ?", 
-			searchPattern, 
+			"title LIKE ? OR content LIKE ?",
 			searchPattern,
-		)
+			searchPattern,
+		).Order("created_at DESC")
+		
 		log.Printf("Searching stories for term: %s", searchTerm)
+	
+	// --- ЛОГИКА 2: УМНАЯ ЛЕНТА (Если не ищут) ---
+	} else {
+		// Формула "Гравитации" без лайков
+		// (Ответы * 30 + Шеры * 50 + Просмотры * 0.2) / (Время + 2)^1.8
+		rankingQuery := `
+			(
+				(COALESCE(reply_count, 0) * 30) + 
+				(shares * 50) + 
+				(views * 0.2)
+			) 
+			/ POW((EXTRACT(EPOCH FROM (NOW() - stories.created_at)) / 3600) + 2, 1.8)
+		`
+		
+		// Если пользователь авторизован, добавляем логику подписок и скрытых постов
+		if userID != 0 {
+			// Присоединяем подписки для буста (умножаем рейтинг на 1.5 если подписан)
+			query = query.Joins("LEFT JOIN subscriptions ON subscriptions.following_id = stories.user_id AND subscriptions.follower_id = ?", userID)
+			rankingQuery += ` * (CASE WHEN subscriptions.follower_id IS NOT NULL THEN 1.5 ELSE 1.0 END)`
+
+			// Исключаем посты из "Не интересно"
+			query = query.Where("stories.id NOT IN (?)", db.Table("not_interesteds").Select("story_id").Where("user_id = ?", userID))
+		}
+
+		// Применяем сортировку по формуле
+		query = query.Order(gorm.Expr(rankingQuery + " DESC"))
+		
+		// Показываем только корневые истории (не ответы), чтобы не засорять ленту
+		query = query.Where("stories.reply_to IS NULL")
 	}
 
+	// Выполняем запрос с пагинацией
 	var stories []models.Story
-	if err := query.Find(&stories).Error; err != nil {
+	if err := query.Limit(limit).Offset(offset).Find(&stories).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stories"})
 		return
 	}
@@ -47,8 +96,10 @@ func GetStories(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"stories": stories,
 		"count":   len(stories),
+		"page":    page,
 	})
 }
+
 
 func RegisterView(db *gorm.DB, postId int, userId uint) error {
     log.Printf("Registering view for story %d by user %d", postId, userId)

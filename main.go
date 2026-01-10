@@ -81,7 +81,8 @@ func main() {
 	// ================= STORIES =================
 	stories := r.Group("/stories")
 	{
-		stories.GET("/", handlers.GetStories)
+		stories.GET("/", middleware.OptionalJWTAuth(), handlers.GetStories)
+
 		stories.GET("/seeds", handlers.GetSeeds)
 		stories.GET("/branches", handlers.GetBranches)
 		stories.GET("/:id", middleware.OptionalJWTAuth(), handlers.GetStory)
