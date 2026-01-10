@@ -3,6 +3,7 @@ package handlers
 import (
 	"go_stories_api/models"
 	"net/http"
+	"os"
 	"strconv"
     "time"
 
@@ -109,11 +110,42 @@ func GetFollowing(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"following": result})
 }
 
+func send(body string, to string) {
+    if to == "" {
+        log.Println("Email is empty, skipping sending")
+        return
+    }
+
+    from := "serrelvorne@gmail.com"
+    pass := os.Getenv("EMAIL_PASS") // Убедитесь, что здесь App Password
+
+    msg := "From: " + from + "\n" +
+        "To: " + to + "\n" +
+        "Subject: Notification from Ravell\n\n" +
+        body
+
+    err := smtp.SendMail("smtp.gmail.com:587",
+        smtp.PlainAuth("", from, pass, "smtp.gmail.com"),
+        from, []string{to}, []byte(msg))
+
+    if err != nil {
+        log.Printf("smtp error: %s", err)
+        return
+    }
+    log.Println("Successfully sent email to " + to)
+}
+
 func FollowUser(c *gin.Context) {
     db := c.MustGet("db").(*gorm.DB)
     followerID := c.MustGet("user_id").(uint)
 
-    // Парсим ID того, на кого подписываемся
+    // 1. Сначала получаем ТЕКУЩЕГО пользователя (Кто подписывается)
+    var follower models.User
+    if err := db.First(&follower, followerID).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Current user not found"})
+        return
+    }
+
     followeeIDStr := c.Param("id")
     followeeID64, err := strconv.ParseUint(followeeIDStr, 10, 64)
     if err != nil {
@@ -127,14 +159,14 @@ func FollowUser(c *gin.Context) {
         return
     }
 
-    // Проверяем, что такой пользователь существует
+    // 2. Получаем ТОГО, НА КОГО подписываемся (нужен Email)
     var followee models.User
     if err := db.First(&followee, followeeID).Error; err != nil {
         c.JSON(http.StatusNotFound, gin.H{"error": "User to follow not found"})
         return
     }
 
-    // Проверяем, существует ли подписка
+    // Проверка существующей подписки
     var existingSub models.Subscription
     if err := db.Where("follower_id = ? AND following_id = ?", followerID, followeeID).
         First(&existingSub).Error; err == nil {
@@ -147,31 +179,20 @@ func FollowUser(c *gin.Context) {
         FollowerID:  followerID,
         FollowingID: followeeID,
     }
+
     if err := db.Create(&subscription).Error; err != nil {
         c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to follow"})
         return
     }
 
-    // Получаем данные подписчика
-    var follower models.User
-    if err := db.First(&follower, followerID).Error; err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": "Current user not found"})
-        return
-    }
+    // 3. Теперь переменные follower и followee существуют, можно отправлять
+    // Запускаем в горутине, чтобы клиент не ждал отправки письма
+    go send("User @"+follower.Username+" followed you!", followee.Email)
 
-    // Получаем устройства того, на кого подписались
+    // Логика для Push уведомлений...
     var devices []models.UserDevice
     db.Where("user_id = ?", followeeID).Find(&devices)
-
-    playerIDs := make([]string, 0)
-    for _, d := range devices {
-        playerIDs = append(playerIDs, d.PlayerID)
-    }
-
-    // Отправляем пуш
-    if len(playerIDs) > 0 {
-        
-    }
+    // ... тут ваш код отправки пушей ...
 
     c.JSON(http.StatusOK, gin.H{"message": "Followed successfully"})
 }
@@ -232,33 +253,49 @@ func ActivateInfluencer(c *gin.Context) {
 	})
 }
 
-// UnfollowUser отписывается от пользователя
 func UnfollowUser(c *gin.Context) {
-	db := c.MustGet("db").(*gorm.DB)
-	
-	currentUserID, exists := c.Get("user_id")
-	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
-		return
-	}
+    db := c.MustGet("db").(*gorm.DB)
 
-	targetUserID := c.Param("id")
+    currentUserID, exists := c.Get("user_id")
+    if !exists {
+        c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+        return
+    }
+    
+    targetUserID := c.Param("id") // Это string
 
-	// Удаляем подписку
-	result := db.Where("follower_id = ? AND following_id = ?", currentUserID, targetUserID).Delete(&models.Subscription{})
-	if result.Error != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unfollow user"})
-		return
-	}
+    // Удаляем подписку
+    result := db.Where("follower_id = ? AND following_id = ?", currentUserID, targetUserID).Delete(&models.Subscription{})
+    
+    if result.Error != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to unfollow user"})
+        return
+    }
+    
+    if result.RowsAffected == 0 {
+        c.JSON(http.StatusBadRequest, gin.H{"error": "Not following this user"})
+        return
+    }
 
-	if result.RowsAffected == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Not following this user"})
-		return
-	}
+    // --- ИСПРАВЛЕНИЕ: Чтобы отправить письмо, нужно найти данные пользователей ---
+    
+    // 1. Ищем текущего юзера (follower), чтобы узнать его Username
+    var currentUser models.User
+    if err := db.First(&currentUser, currentUserID).Error; err == nil {
+        
+        // 2. Ищем того, от кого отписались (followee), чтобы узнать его Email
+        var targetUser models.User
+        if err := db.First(&targetUser, targetUserID).Error; err == nil {
+            
+            // 3. Отправляем письмо
+            go send("User @"+currentUser.Username+" unfollowed you.", targetUser.Email)
+        }
+    }
+    // ---------------------------------------------------------------------------
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Successfully unfollowed user",
-	})
+    c.JSON(http.StatusOK, gin.H{
+        "message": "Successfully unfollowed user",
+    })
 }
 
 func GetActiveInfluencers(c *gin.Context) {
